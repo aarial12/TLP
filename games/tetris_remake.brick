@@ -1,0 +1,191 @@
+# tetris.brick
+GAME_TYPE TETRIS
+
+GAME_GRID (10, 30)
+
+# --- Definicion de las Piezas ---
+DEFINE SHAPE Z_PIECE:
+  CHANCE 19
+  STATE 1:
+    [1, 1, 0]
+    [0, 1, 1]
+    [0, 0, 0]
+  STATE 2:
+    [0, 0, 1]
+    [0, 1, 1]
+    [0, 1, 0]
+  STATE 3:
+    [0, 0, 0]
+    [1, 1, 0]
+    [0, 1, 1] 
+  STATE 4:
+    [0, 1, 0]
+    [1, 1, 0]
+    [1, 0, 0]
+END
+
+DEFINE SHAPE S_PIECE:
+  CHANCE 19
+  STATE 1:
+    [0, 1, 1]
+    [1, 1, 0]
+    [0, 0, 0]
+  STATE 2:
+    [0, 1, 0]
+    [0, 1, 1]
+    [0, 0, 1]
+  STATE 3:
+    [0, 0, 0]
+    [0, 1, 1]
+    [1, 1, 0] 
+  STATE 4:
+    [1, 0, 0]
+    [1, 1, 0]
+    [0, 1, 0]
+END
+
+DEFINE SHAPE O_SHAPE:
+  CHANCE 5
+  STATE 1: 
+    [1, 1]
+    [1, 1]
+END
+
+DEFINE SHAPE I_PIECE:
+  CHANCE 5
+  STATE 1:
+    [0, 1, 0, 0]
+    [0, 1, 0, 0]
+    [0, 1, 0, 0]
+    [0, 1, 0, 0]
+  STATE 2:
+    [0, 0, 0, 0]
+    [0, 0, 0, 0]
+    [1, 1, 1, 1]
+    [0, 0, 0, 0]
+  STATE 3:
+    [0, 0, 1, 0]
+    [0, 0, 1, 0]
+    [0, 0, 1, 0]
+    [0, 0, 1, 0]
+  STATE 4:
+    [0, 0, 0, 0]
+    [1, 1, 1, 1]
+    [0, 0, 0, 0]
+    [0, 0, 0, 0]
+END
+
+DEFINE SHAPE L_PIECE:
+  CHANCE 12
+  STATE 1:
+    [0, 1, 0]
+    [0, 1, 0]
+    [0, 1, 1]
+  STATE 2:
+    [0, 0, 0]
+    [1, 1, 1]
+    [1, 0, 0]
+  STATE 3:
+    [1, 1, 0]
+    [0, 1, 0]
+    [0, 1, 0]
+  STATE 4:
+    [0, 0, 1]
+    [1, 1, 1]
+    [0, 0, 0]
+END
+
+DEFINE SHAPE J_PIECE:
+  CHANCE 12
+  STATE 1:
+    [0, 1, 0]
+    [0, 1, 0]
+    [1, 1, 0]
+  STATE 2:
+    [1, 0, 0]
+    [1, 1, 1]
+    [0, 0, 0]
+  STATE 3:
+    [0, 1, 1]
+    [0, 1, 0]
+    [0, 1, 0]
+  STATE 4:
+    [0, 0, 0]
+    [1, 1, 1]
+    [0, 0, 1]
+END
+
+DEFINE SHAPE T_PIECE:
+  CHANCE 8
+  STATE 1:
+    [0, 1, 0]
+    [1, 1, 1]
+    [0, 0, 0]
+  STATE 2:
+    [0, 1, 0]
+    [0, 1, 1]
+    [0, 1, 0]
+  STATE 3:
+    [0, 0, 0]
+    [1, 1, 1]
+    [0, 1, 0]
+  STATE 4:
+    [0, 1, 0]
+    [1, 1, 0]
+    [0, 1, 0]
+END
+
+DEFINE SHAPE POWER_UP:
+  CHANCE 0
+  STATE 1:
+    [1]
+END
+
+# --- Logica y Reglas ---
+ON START:
+  SPAWN RANDOM_SHAPE
+END
+
+# ON_TICK es el evento que controla la gravedad
+ON TICK:
+  MOVE CURRENT_PIECE DOWN
+END
+
+ON LINE_CLEAR:
+  INCREASE_SCORE 100
+END
+
+ON SECRET:
+  SPAWN POWER_UP
+END
+
+# --- Controles ---
+ON KEY_LEFT:
+  MOVE CURRENT_PIECE LEFT
+END
+ON KEY_RIGHT:
+  MOVE CURRENT_PIECE RIGHT
+END
+ON KEY_DOWN:
+  MOVE CURRENT_PIECE DOWN
+END
+ON KEY_UP:
+  ROTATE CURRENT_PIECE
+END
+
+COLORS:
+  COLOR 1:
+    [000 FFF]
+  COLOR 2:
+    [00 FF 00]
+  COLOR 3:
+    [00 FFFF]
+  COLOR 4:
+    [FFFF 00]
+  COLOR 5:
+    [FF 0000]
+  COLOR 6:
+    [FFA 500]
+  COLOR 7:
+    [800080]
+END

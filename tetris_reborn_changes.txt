@@ -1,0 +1,383 @@
+================================================================================
+  DOCUMENTACION DE CAMBIOS - PROYECTO BRICKSCRIPT
+  Compilador y Runtime Universal para juegos en BrickScript
+================================================================================
+
+--------------------------------------------------------------------------------
+1. GRAMMAR / GRAMATICA BNF
+   Archivos: tetris.bnf  →  tetris_remake.bnf
+--------------------------------------------------------------------------------
+
+DESCRIPCION GENERAL:
+  La gramatica original (tetris.bnf) definia la sintaxis base del lenguaje
+  BrickScript para Tetris. El archivo tetris_remake.bnf es la version extendida
+  que incorpora dos nuevas caracteristicas: el atributo CHANCE en las piezas
+  y la definicion de colores.
+
+CAMBIO 1 — Soporte para CHANCE en la definicion de shapes
+..............................................................
+
+  ANTES (tetris.bnf):
+    <definicion_shape> ::= "DEFINE" "SHAPE" <identificador> ":" <estados> "END"
+
+  DESPUES (tetris_remake.bnf):
+    <definicion_shape> ::= "DEFINE" "SHAPE" <identificador> ":" <chance> <estados> "END"
+    <chance>           ::= "CHANCE" <numero>
+
+  RAZON:
+    Se agrego <chance> como produccion obligatoria dentro de cada bloque
+    DEFINE SHAPE. Esto permite al compilador leer un peso numerico por pieza
+    que el runtime utiliza para el spawning ponderado con random + bisect.
+    El valor va despues de los ":" de apertura del shape y antes del primer STATE.
+
+CAMBIO 2 — Bloque de definicion de colores
+...........................................
+
+  ANTES (tetris.bnf):
+    (no existia ninguna produccion para colores)
+
+  DESPUES (tetris_remake.bnf):
+    <colores_definicion>  ::= "COLORS" ":" <colores> END
+    <colores>             ::= <color> | <color> <colores>
+    <color>               ::= "COLOR" <numero>: <codigo>
+    <codigo>              ::= "[" <hex_seq> "]"
+
+  RAZON:
+    Se introduce un bloque opcional COLORS al final del archivo .brick
+    para asociar colores hexadecimales a las piezas. Permite personalizar
+    la paleta visual del juego sin tocar el runtime.
+
+CAMBIO 3 — Nuevos terminales para secuencias hexadecimales
+...........................................................
+
+  ANTES (tetris.bnf):
+    (solo existian <digito> y <letra>)
+
+  DESPUES (tetris_remake.bnf):
+    <hex_seq>  ::= <hex_char> | <hex_char> <hex_seq>
+    <hex_char> ::= <digito> | "A" | "B" | "C" | "D" | "E" | "F"
+
+  RAZON:
+    Los codigos de color hexadecimales (ej. FF0000, 00FFFF) requieren
+    reconocer los caracteres A-F ademas de los digitos 0-9. Estos terminales
+    dan soporte gramatical a esa necesidad.
+
+
+--------------------------------------------------------------------------------
+2. COMPILADOR
+   Archivo: compiler.py  (version anterior  →  version con CHANCE y colores)
+--------------------------------------------------------------------------------
+
+DESCRIPCION GENERAL:
+  El compilador tokeniza y parsea archivos .brick y los convierte a JSON.
+  La version nueva incorpora el parseo de CHANCE por shape y un bloque
+  completo de colores, y ajusta la estructura del AST resultante.
+
+CAMBIO 1 — Nuevo campo "colors" en el AST inicial
+..................................................
+
+  ANTES:
+    self.ast = {"tipo_juego": None, "config": {}, "shapes": {}, "events": {}}
+
+  DESPUES:
+    self.ast = {"tipo_juego": None, "config": {}, "shapes": {}, "events": {}, "colors": []}
+
+  RAZON:
+    El AST ahora puede transportar la lista de colores hasta el JSON de salida,
+    donde el runtime los puede leer.
+
+CAMBIO 2 — parsear_shape ahora lee el atributo CHANCE
+......................................................
+
+  ANTES:
+    def parsear_shape(self):
+        self.consumir('DEFINE')
+        self.consumir('SHAPE')
+        nombre_shape = self.consumir()
+        self.consumir(':')
+        estados = []
+        # ... parseo de estados ...
+        self.ast['shapes'][nombre_shape] = estados   # solo la lista de estados
+
+  DESPUES:
+    def parsear_shape(self):
+        self.consumir('DEFINE')
+        self.consumir('SHAPE')
+        nombre_shape = self.consumir()
+        self.consumir(':')
+        try:
+            self.consumir('CHANCE')
+            valor_chance = int(self.consumir())
+        except:
+            valor_chance = 1                         # valor por defecto si no hay CHANCE
+        estados = []
+        # ... parseo de estados (sin cambios) ...
+        self.ast['shapes'][nombre_shape] = [valor_chance, estados]  # tupla [chance, estados]
+
+  RAZON:
+    El compilador ahora intenta leer la linea "CHANCE <numero>" justo
+    despues del ":" del shape. Si no existe (shapes sin CHANCE), usa 1
+    como valor por defecto, manteniendo compatibilidad hacia atras.
+    El shape pasa de almacenarse como lista de matrices a almacenarse
+    como [valor_chance, lista_de_matrices].
+
+  IMPACTO EN EL JSON DE SALIDA:
+    ANTES:  "I_PIECE": [ [[0,1,0,0],...], [[1,1,1,1],...] ]
+    DESPUES:"I_PIECE": [ 5, [ [[0,1,0,0],...], [[1,1,1,1],...] ] ]
+                         ^--- indice 0 = chance, indice 1 = estados
+
+CAMBIO 3 — Nuevo metodo parsear_color()
+........................................
+
+  ANTES:
+    (no existia)
+
+  DESPUES:
+    def parsear_color(self):
+        self.consumir('COLORS')
+        self.consumir(':')
+        colores = []
+        while ... self.tokens[self.posicion] == 'COLOR':
+            self.consumir('COLOR')
+            self.consumir()       # numero de color
+            self.consumir(':')
+            self.consumir('[')
+            color = self.consumir()
+            while ... != ']':
+                color += self.consumir()
+            self.consumir(']')
+            colores.append(color)
+        self.consumir('END')
+        self.ast['colors'] = colores
+
+  RAZON:
+    Parsea el bloque COLORS del .brick y almacena los codigos de color
+    como lista de strings en el AST.
+
+CAMBIO 4 — El loop principal de parse() reconoce el token COLORS
+.................................................................
+
+  ANTES:
+    elif token_actual == 'ON':
+        self.parsear_evento()
+    else:
+        self.posicion += 1      # cualquier otro token se descartaba
+
+  DESPUES:
+    elif token_actual == 'ON':
+        self.parsear_evento()
+    elif token_actual == 'COLORS':
+        self.parsear_color()    # nuevo branch para el bloque de colores
+    else:
+        self.posicion += 1
+
+
+--------------------------------------------------------------------------------
+3. RUNTIME
+   Archivo: runtime.py
+--------------------------------------------------------------------------------
+
+DESCRIPCION GENERAL:
+  El runtime carga el JSON generado por el compilador y ejecuta el juego
+  usando Tkinter. El cambio principal pendiente de aplicar es en el metodo
+  tetris_spawn_pieza(), para usar el atributo CHANCE con random + bisect.
+
+CAMBIO 1 — tetris_spawn_pieza() con spawning ponderado por CHANCE
+.................................................................
+
+  ANTES:
+    def tetris_spawn_pieza(self):
+        nombre_pieza = random.choice(self.datos_juego['shapes'].keys())
+        self.pieza_actual = self.datos_juego['shapes'][nombre_pieza]
+        ...
+
+    PROBLEMA: random.choice trata todas las piezas con igual probabilidad
+    e ignora el atributo CHANCE definido en el .brick. Ademas, el nuevo
+    formato de shapes es [chance, estados], por lo que acceder con [rotacion]
+    directamente daria un resultado incorrecto (accederia al entero chance
+    o a la lista de estados segun el indice).
+
+  DESPUES:
+    import bisect  # agregar al bloque de imports
+
+    def tetris_spawn_pieza(self):
+        shapes = self.datos_juego['shapes']
+        nombres = list(shapes.keys())
+
+        # Construir pesos acumulados a partir del CHANCE de cada shape
+        pesos_acumulados = []
+        total = 0
+        for nombre in nombres:
+            total += shapes[nombre][0]      # indice 0 = valor CHANCE
+            pesos_acumulados.append(total)
+
+        # Seleccion ponderada con random + bisect
+        punto = random.uniform(0, total)
+        indice = bisect.bisect(pesos_acumulados, punto)
+        nombre_pieza = nombres[indice]
+
+        self.pieza_actual = shapes[nombre_pieza][1]   # indice 1 = lista de estados
+        self.pieza_x, self.pieza_y, self.pieza_rotacion = self.ancho / 2 - 2, 0, 0
+        if self.tetris_verificar_colision(self.pieza_x, self.pieza_y, self.pieza_rotacion):
+            self.juego_terminado = True
+
+  RAZON:
+    El nuevo formato del JSON almacena cada shape como [chance, estados].
+    El metodo ahora acumula los valores CHANCE, elige un punto aleatorio
+    en ese rango total y usa bisect.bisect() para encontrar el segmento
+    correspondiente. Piezas con CHANCE mayor ocupan un segmento mas
+    grande y aparecen con mayor frecuencia.
+
+CAMBIO 2 — tetris_verificar_colision() debe acceder a estados desde indice 1
+............................................................................
+
+  ANTES:
+    matriz_pieza = self.pieza_actual[self.pieza_rotacion]
+
+  DESPUES:
+    # self.pieza_actual ya apunta a shapes[nombre][1] (la lista de estados)
+    # por lo que este acceso sigue siendo correcto sin modificacion adicional,
+    # siempre que tetris_spawn_pieza asigne correctamente el indice [1].
+    matriz_pieza = self.pieza_actual[self.pieza_rotacion]   # sin cambio
+
+
+--------------------------------------------------------------------------------
+4. ARCHIVO DE JUEGO (.brick)
+   Archivos: tetris.brick  →  tetris_p.brick
+--------------------------------------------------------------------------------
+
+DESCRIPCION GENERAL:
+  tetris.brick es el archivo de definicion de juego original con 3 piezas
+  y sin soporte de CHANCE. tetris_p.brick es la version prototipo extendida
+  que incorpora las 7 piezas oficiales del Tetris, un shape especial
+  POWER_UP, el atributo CHANCE en todas las piezas y un bloque de colores.
+
+CAMBIO 1 — Grid de juego
+.........................
+
+  ANTES (tetris.brick):   GAME_GRID (20, 50)
+  DESPUES (tetris_p.brick): GAME_GRID (4, 30)
+
+  NOTA: El grid de tetris_p.brick (4 columnas) parece un valor de prueba.
+  Para un juego funcional se recomienda volver a (10, 20) o similar.
+
+CAMBIO 2 — Cantidad de piezas definidas
+........................................
+
+  ANTES (tetris.brick):
+    3 piezas: I_PIECE, L_PIECE, T_PIECE
+    (sin CHANCE en ninguna)
+
+  DESPUES (tetris_p.brick):
+    8 shapes: Z_PIECE, S_PIECE, O_SHAPE, I_PIECE, L_PIECE, J_PIECE,
+              T_PIECE, POWER_UP
+    (todas con atributo CHANCE)
+
+CAMBIO 3 — Atributo CHANCE agregado a cada shape
+.................................................
+
+  Distribucion de chances en tetris_p.brick:
+
+    Z_PIECE   CHANCE 0    (no aparece — pieza problema extrema)
+    S_PIECE   CHANCE 0    (no aparece — pieza problema extrema)
+    O_SHAPE   CHANCE 5    (aparece poco — pieza facil)
+    I_PIECE   CHANCE 5    (aparece poco — pieza mas valiosa)
+    L_PIECE   CHANCE 0    (no aparece en esta config de prueba)
+    J_PIECE   CHANCE 0    (no aparece en esta config de prueba)
+    T_PIECE   CHANCE 0    (no aparece en esta config de prueba)
+    POWER_UP  CHANCE 0    (reservada para evento especial ON_SECRET)
+
+  NOTA: Con CHANCE 0 una pieza jamas puede ser seleccionada por el
+  algoritmo de bisect ya que no aporta superficie al rango total.
+  Para un juego difícil pero jugable se recomienda la distribucion:
+
+    Z_PIECE   CHANCE 19
+    S_PIECE   CHANCE 19
+    O_SHAPE   CHANCE 5
+    I_PIECE   CHANCE 5
+    L_PIECE   CHANCE 12
+    J_PIECE   CHANCE 12
+    T_PIECE   CHANCE 8
+
+CAMBIO 4 — Nueva pieza POWER_UP
+................................
+
+  ANTES: (no existia)
+
+  DESPUES:
+    DEFINE SHAPE POWER_UP:
+      CHANCE 0
+      STATE 1:
+        [1]
+    END
+
+  RAZON:
+    Shape de 1x1 reservado para ser invocado por el evento especial
+    ON_SECRET. Con CHANCE 0 no entra en el pool de spawning normal.
+
+CAMBIO 5 — Nuevo evento ON_SECRET
+..................................
+
+  ANTES: (no existia)
+
+  DESPUES:
+    ON SECRET:
+      SPAWN POWER_UP
+    END
+
+  RAZON:
+    Evento reservado para logica futura (power-ups, cheats, etc.).
+    No es procesado por el runtime actual ya que no hay un disparador
+    de teclado u otro evento que lo invoque.
+
+CAMBIO 6 — Bloque COLORS agregado
+..................................
+
+  ANTES (tetris.brick): (no existia bloque de colores)
+
+  DESPUES (tetris_p.brick):
+    COLORS:
+      COLOR 1: [000FFF]
+      COLOR 2: [00FF00]
+      COLOR 3: [00FFFF]
+      COLOR 4: [FFFF00]
+      COLOR 5: [FF0000]
+      COLOR 6: [FFA500]
+      COLOR 7: [800080]
+    END
+
+  RAZON:
+    Define 7 colores (uno por pieza oficial) que el runtime podria usar
+    para diferenciar visualmente cada tipo de pieza. Actualmente el runtime
+    usa colores hardcodeados; este bloque sienta las bases para que en una
+    version futura el runtime lea la paleta directamente del JSON.
+
+
+================================================================================
+  RESUMEN RAPIDO DE CAMBIOS POR ARCHIVO
+================================================================================
+
+  tetris.bnf → tetris_remake.bnf:
+    + Produccion <chance> en <definicion_shape>
+    + Bloque <colores_definicion> completo
+    + Terminales <hex_seq> y <hex_char>
+
+  compiler.py (version anterior → version nueva):
+    + Campo "colors" en el AST
+    + Parseo de CHANCE en parsear_shape() con fallback a 1
+    + Formato de shapes cambia de [estados] a [chance, estados]
+    + Nuevo metodo parsear_color()
+    + Reconocimiento del token COLORS en el loop principal
+
+  runtime.py:
+    + tetris_spawn_pieza() reescrito con random.uniform + bisect
+    + Acceso correcto al indice [1] de shapes para obtener los estados
+    + Import de bisect necesario
+
+  tetris.brick → tetris_p.brick:
+    + 3 piezas → 8 shapes (7 oficiales + POWER_UP)
+    + Atributo CHANCE en todas las piezas
+    + Evento ON_SECRET con SPAWN POWER_UP
+    + Bloque COLORS con paleta de 7 colores
+
+================================================================================
