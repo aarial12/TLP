@@ -1,6 +1,6 @@
 {
   "shapes": {
-    "CAT": [
+    "TRIANGLE": [
       1, 
       [
         [
@@ -17,7 +17,8 @@
     "grid_size": [
       20, 
       20
-    ]
+    ], 
+    "dificulty": "ENTUSIASTA"
   }, 
   "events": {
     "ON_KEY_DOWN": [

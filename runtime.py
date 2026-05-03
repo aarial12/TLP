@@ -11,7 +11,7 @@ import Tkinter as tk
 from Tkinter import *
 import tkMessageBox # Necesario para el GAME OVER
 # Quitamos os y msvcrt ya que la GUI maneja el dibujo y el input
-# import os
+import os
 # import msvcrt 
 
 class Juego:
@@ -65,12 +65,54 @@ class Juego:
             self.serpiente_cuerpo = []
             self.serpiente_direccion = (1, 0)
             self.posicion_comida = None
+            self.posicion_veneno = None
             self.velocidad_gravedad = 0.15
             self.color_pieza = None
-        
-        self.timer_gravedad = 0
-        self.ejecutar_evento('ON_START')
-        self.timer_id = None # Para controlar el loop de Tkinter
+            self.dificultad = 'BABY' if 'dificulty' not in self.datos_juego.get('config') else self.datos_juego['config']['dificulty']
+            self.crecimiento_pendiente = 0
+            self.timer_gravedad = 0
+            self.ejecutar_evento('ON_START')
+            self.timer_id = None # Para controlar el loop de Tkinter
+
+            shapes = self.datos_juego.get('shapes', {})
+            self.usar_nyancat = 'CAT' in shapes
+            self.img_nyancat = {}
+            self.img_nyancat_body = {}
+            self.img_nyancat_trail = {}
+
+            if self.usar_nyancat:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                direcciones = {
+                    'RIGHT': 'nyancat_der.png',
+                    'LEFT': 'nyancat_izq.png',
+                    'UP': 'nyancat_arr.png',
+                    'DOWN': 'nyancat_abj.png'
+                }
+
+                body_files = {
+                    'RIGHT': 'nyancat_body_der.png',
+                    'LEFT':  'nyancat_body_izq.png',
+                    'UP':    'nyancat_body_arr.png',
+                    'DOWN':  'nyancat_body_abj.png'
+                }
+                trail_files = {
+                    'RIGHT': 'nyancat_trail_der.png',
+                    'LEFT':  'nyancat_trail_izq.png',
+                    'UP':    'nyancat_trail_arr.png',
+                    'DOWN':  'nyancat_trail_abj.png'
+                }
+            
+
+                for dir_name, archivo in direcciones.items():
+                    img_path = os.path.join(base_dir, 'assets', archivo)
+                    self.img_nyancat[dir_name] = tk.PhotoImage(file=img_path)
+
+                for dir_name, archivo in body_files.items():
+                    img_path = os.path.join(base_dir, 'assets', archivo)
+                    self.img_nyancat_body[dir_name] = tk.PhotoImage(file=img_path)
+                for dir_name, archivo in trail_files.items():
+                    img_path = os.path.join(base_dir, 'assets', archivo)
+                    self.img_nyancat_trail[dir_name] = tk.PhotoImage(file=img_path)
 
     def run(self):
         # Inicia el ciclo principal de juego de Tkinter
@@ -147,7 +189,8 @@ class Juego:
         COLOR_SNAKE_CABEZA = '#00FF00' # Verde brillante
         COLOR_SNAKE_CUERPO = '#33CC33' # Verde normal
         COLOR_FOOD = '#FF0000'      # Rojo
-        
+        COLOR_VENENO = '#FF0199'
+
         # 1. Dibujar la cuadricula estatica (grid base)
         for y in range(self.alto):
             for x in range(self.ancho):
@@ -166,27 +209,41 @@ class Juego:
         
         # 3. Dibujar Snake y Comida
         if self.tipo_juego == 'SNAKE':
-            # Comida
             if self.posicion_comida:
                 x, y = self.posicion_comida
                 self.dibujar_celda(x, y, COLOR_FOOD)
-            # Cuerpo de la Serpiente
+            if self.posicion_veneno:
+                x, y = self.posicion_veneno
+                self.dibujar_celda(x, y, COLOR_VENENO)
+
+
             for i, segmento in enumerate(self.serpiente_cuerpo):
                 x, y = segmento
-                color = COLOR_SNAKE_CABEZA if i == 0 else COLOR_SNAKE_CUERPO
-                shapes = self.datos_juego['shapes']
-                nombres = list(shapes.keys())
-                if color == COLOR_SNAKE_CABEZA:    
-                    self.dibujar_triangulo(x, y, color)
+                direccion_segmento = self.obtener_direccion_segmento(i)
+
+                if self.usar_nyancat:
+                    if i == 0:
+                        self.dibujar_nyancat(x, y, direccion_segmento)
+                    elif i == 1:
+                        self.dibujar_nyancat_body(x, y, direccion_segmento)
+                    else:
+                        self.dibujar_nyancat_trail(x, y, direccion_segmento)
                 else:
-                    if nombres[0] == 'PIXEL':
-                        self.dibujar_celda(x, y, color)
-                    elif nombres[0] == 'CIRCLE':
-                        self.dibujar_circulo(x, y, color)
-                    elif nombres[0] == 'TRIANGLE':
-                        self.dibujar_triangulo(x, y, color)
-                    elif nombres[0] == 'CAT':
-                        self.dibujar_nyancat(x, y)
+                    shape_names = list(self.datos_juego.get('shapes', {}).keys())
+                    shape_type = shape_names[0] if shape_names else 'PIXEL'
+
+                    if i == 0 and shape_type == 'PIXEL':
+                        self.dibujar_celda(x, y, COLOR_SNAKE_CABEZA)
+                    elif i == 0 and shape_type == 'TRIANGLE':
+                        self.dibujar_triangulo(x, y, COLOR_SNAKE_CABEZA, direccion_segmento)
+                    elif i == 0 and shape_type == 'CIRCLE':
+                        self.dibujar_triangulo(x, y, COLOR_SNAKE_CABEZA)
+                    elif shape_type == 'CIRCLE':
+                        self.dibujar_circulo(x, y, COLOR_SNAKE_CUERPO)
+                    elif shape_type == 'TRIANGLE':
+                        self.dibujar_triangulo(x, y, COLOR_SNAKE_CUERPO, direccion_segmento)
+                    else:
+                        self.dibujar_celda(x, y, COLOR_SNAKE_CUERPO)
 
     def dibujar_celda(self, x, y, color):
         ts = self.taman_celda # Alias para taman de celda
@@ -200,35 +257,93 @@ class Juego:
         x2, y2 = x1 + ts, y1 + ts
         self.canvas.create_oval(x1, y1, x2, y2, fill=color, outline='#000000')
     
-    def dibujar_triangulo(self, x, y, color):
-        ts = self.taman_celda # Alias para taman de celda
-        x2, y2 = x * ts, y * ts
-        x1, y1 = x2, y2 + ts
-        x3, y3 = x2 + ts, (y2 + y1)/2
 
-        #ts = self.taman_celda # Alias para taman de celda
-        #x1, y1 = x * ts, y * ts
-        #x2, y2 = x1, y1 + ts
-        #x3, y3 = x1 - ts, (y1 + y2)/2
+    def dibujar_triangulo(self, x, y, color, direccion=(1, 0)):
+        ts = self.taman_celda
+        x0 = x * ts
+        y0 = y * ts
 
-        #x1, y1 = x * ts, y * ts
-        #x2, y2 = x1 + ts, y1
-        #x3, y3 = (x1 + x2)/2, y2 + ts
+        if direccion == (1, 0):      
+            x1, y1 = x0, y0
+            x2, y2 = x0, y0 + ts
+            x3, y3 = x0 + ts, y0 + ts / 2
+        elif direccion == (-1, 0):   
+            x1, y1 = x0 + ts, y0
+            x2, y2 = x0 + ts, y0 + ts
+            x3, y3 = x0, y0 + ts / 2
+        elif direccion == (0, -1):   
+            x1, y1 = x0, y0 + ts
+            x2, y2 = x0 + ts, y0 + ts
+            x3, y3 = x0 + ts / 2, y0
+        else:                        
+            x1, y1 = x0, y0
+            x2, y2 = x0 + ts, y0
+            x3, y3 = x0 + ts / 2, y0 + ts
 
-        #x1, y1 = x * ts, (y * ts) + ts
-        #x2, y2 = x1 + ts, y1
-        #x3, y3 = (x1 + x2)/2, y2 - ts 
         self.canvas.create_polygon(x1, y1, x2, y2, x3, y3, fill=color, outline='#000000')
     
-    def dibujar_nyancat(self, x, y):
-        global img
-        ts = self.taman_celda # Alias para taman de celda
+    def dibujar_nyancat(self, x, y, direccion=(1, 0)):
+        ts = self.taman_celda
         x1, y1 = x * ts, y * ts
-        x2, y2 = x1 + ts, y1 + ts
-        img = tk.PhotoImage(file='./assets/nyancat3.gif')
-        print(img.width(), img.height())
-        self.canvas.create_image(x1, y1, image= img)
-    
+        
+        # Mapeo de dirección a imagen
+        dir_map = {
+            (1, 0): 'RIGHT',
+            (-1, 0): 'LEFT',
+            (0, -1): 'UP',
+            (0, 1): 'DOWN'
+        }
+        
+        dir_key = dir_map.get(direccion, 'RIGHT')
+        
+        if dir_key in self.img_nyancat and self.img_nyancat[dir_key]:
+            self.canvas.create_image(x1, y1, image=self.img_nyancat[dir_key], anchor='nw')
+            return
+                
+        # Fallback: dibujar triángulo si NyanCat no está disponible
+        self.dibujar_triangulo(x, y, '#00FF00')
+
+    def dibujar_nyancat_body(self, x, y, arg=None):
+        if isinstance(arg, tuple):
+            direccion = arg
+            color = '#33CC33'
+        else:
+            color = arg or '#33CC33'
+            direccion = (1, 0)
+
+        dir_map = {(1, 0): 'RIGHT', (-1, 0): 'LEFT', (0, -1): 'UP', (0, 1): 'DOWN'}
+        dir_key = dir_map.get(direccion, 'RIGHT')
+
+        img = None
+        if hasattr(self, 'img_nyancat_body'):
+            img = self.img_nyancat_body.get(dir_key)
+        if not img:
+            img = getattr(self, 'img_nyancat', {}).get(dir_key)
+
+        if img:
+            ts = self.taman_celda
+            self.canvas.create_image(x * ts, y * ts, image=img, anchor='nw')
+            return
+        # Fallback 
+        self.dibujar_circulo(x, y, color)
+
+
+    def dibujar_nyancat_trail(self, x, y, direccion=(1, 0)):
+        dir_map = {(1, 0): 'RIGHT', (-1, 0): 'LEFT', (0, -1): 'UP', (0, 1): 'DOWN'}
+        dir_key = dir_map.get(direccion, 'RIGHT')
+
+        img = None
+        if hasattr(self, 'img_nyancat_trail'):
+            img = self.img_nyancat_trail.get(dir_key)
+        if not img:
+            img = getattr(self, 'img_nyancat', {}).get(dir_key)
+
+        if img:
+            ts = self.taman_celda
+            self.canvas.create_image(x * ts, y * ts, image=img, anchor='nw')
+            return
+        # Fallback: triángulo orientado
+        self.dibujar_triangulo(x, y, '#228822', direccion)
 
     def ejecutar_evento(self, nombre_evento):
         if nombre_evento in self.datos_juego['events']:
@@ -351,6 +466,13 @@ class Juego:
                 self.posicion_comida = (x, y)
                 break
 
+        if ((self.puntuacion % 100) == 0) and self.dificultad != 'BABY':
+            while True:
+                x, y = random.randint(0, self.ancho - 1), random.randint(0, self.alto - 1)
+                if (x, y) not in self.serpiente_cuerpo:
+                    self.posicion_veneno = (x, y)
+                    break
+
     def snake_mover_jugador(self):
         if not self.serpiente_cuerpo: return
         cabeza_x, cabeza_y = self.serpiente_cuerpo[0]
@@ -366,9 +488,24 @@ class Juego:
             return
 
         self.serpiente_cuerpo.insert(0, nueva_cabeza)
+
+        if nueva_cabeza == self.posicion_veneno: 
+            if self.dificultad == 'ENTUSIASTA':
+                
+                self.puntuacion = 0  
+            else: 
+                self.juego_terminado = True
+            
+            self.posicion_veneno = None
         
         if nueva_cabeza == self.posicion_comida:
             self.ejecutar_evento('ON_EAT_FOOD')
+            if self.crecimiento_pendiente > 0:
+                self.crecimiento_pendiente -= 1
+            else:
+                self.serpiente_cuerpo.pop()
+        elif self.crecimiento_pendiente > 0:
+            self.crecimiento_pendiente -= 1
         else:
             self.serpiente_cuerpo.pop()
 
@@ -381,9 +518,21 @@ class Juego:
             self.serpiente_direccion = (-1, 0)
         elif direccion == 'RIGHT' and self.serpiente_direccion[0] != -1:
             self.serpiente_direccion = (1, 0)
+    
+    def obtener_direccion_segmento(self, indice):
+        if indice == 0:
+            return self.serpiente_direccion
+
+        if indice >= len(self.serpiente_cuerpo):
+            return (1, 0)
+
+        actual_x, actual_y = self.serpiente_cuerpo[indice]
+        anterior_x, anterior_y = self.serpiente_cuerpo[indice - 1]
+
+        return (anterior_x - actual_x, anterior_y - actual_y)
 
     def snake_crecer(self):
-        pass
+        self.crecimiento_pendiente += 1
 
 
     # METODOS DE SALIDA (ADAPTADOS A GUI)
