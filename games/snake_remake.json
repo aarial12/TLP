@@ -1,13 +1,6 @@
 {
-  "tipo_juego": "SNAKE", 
-  "config": {
-    "grid_size": [
-      20, 
-      20
-    ]
-  }, 
   "shapes": {
-    "CAT": [  
+    "TRIANGLE": [
       1, 
       [
         [
@@ -24,95 +17,95 @@
     "grid_size": [
       20, 
       20
-    ]
+    ], 
+    "dificulty": "ENTUSIASTA"
   }, 
   "events": {
-    "ON_START": [
+    "ON_KEY_DOWN": [
       {
-        "accion": "SPAWN", 
-        "objeto": "PLAYER", 
-        "params": []
-      }, 
-      {
-        "accion": "SPAWN", 
-        "objeto": "FOOD", 
-        "params": [
-          "RANDOM"
-        ]
-      }
-    ], 
-    "ON_TICK": [
-      {
-        "accion": "MOVE", 
-        "objeto": "PLAYER", 
-        "params": [
-          "FORWARD"
-        ]
+        "params": [], 
+        "accion": "SET_DIRECTION", 
+        "objeto": "DOWN"
       }
     ], 
     "ON_EAT_FOOD": [
       {
+        "params": [], 
         "accion": "INCREASE_SCORE", 
-        "objeto": "10", 
-        "params": []
+        "objeto": "10"
       }, 
       {
-        "accion": "GROW", 
-        "objeto": "PLAYER", 
         "params": [
           "1"
-        ]
+        ], 
+        "accion": "GROW", 
+        "objeto": "PLAYER"
       }, 
       {
-        "accion": "SPAWN", 
-        "objeto": "FOOD", 
         "params": [
           "RANDOM"
-        ]
-      }
-    ], 
-    "ON_COLLISION_WALL": [
-      {
-        "accion": "GAME_OVER", 
-        "objeto": null, 
-        "params": []
-      }
-    ], 
-    "ON_COLLISION_SELF": [
-      {
-        "accion": "GAME_OVER", 
-        "objeto": null, 
-        "params": []
-      }
-    ], 
-    "ON_KEY_UP": [
-      {
-        "accion": "SET_DIRECTION", 
-        "objeto": "UP", 
-        "params": []
-      }
-    ], 
-    "ON_KEY_DOWN": [
-      {
-        "accion": "SET_DIRECTION", 
-        "objeto": "DOWN", 
-        "params": []
-      }
-    ], 
-    "ON_KEY_LEFT": [
-      {
-        "accion": "SET_DIRECTION", 
-        "objeto": "LEFT", 
-        "params": []
+        ], 
+        "accion": "SPAWN", 
+        "objeto": "FOOD"
       }
     ], 
     "ON_KEY_RIGHT": [
       {
+        "params": [], 
         "accion": "SET_DIRECTION", 
-        "objeto": "RIGHT", 
-        "params": []
+        "objeto": "RIGHT"
+      }
+    ], 
+    "ON_TICK": [
+      {
+        "params": [
+          "FORWARD"
+        ], 
+        "accion": "MOVE", 
+        "objeto": "PLAYER"
+      }
+    ], 
+    "ON_COLLISION_WALL": [
+      {
+        "params": [], 
+        "accion": "GAME_OVER", 
+        "objeto": null
+      }
+    ], 
+    "ON_COLLISION_SELF": [
+      {
+        "params": [], 
+        "accion": "GAME_OVER", 
+        "objeto": null
+      }
+    ], 
+    "ON_START": [
+      {
+        "params": [], 
+        "accion": "SPAWN", 
+        "objeto": "PLAYER"
+      }, 
+      {
+        "params": [
+          "RANDOM"
+        ], 
+        "accion": "SPAWN", 
+        "objeto": "FOOD"
+      }
+    ], 
+    "ON_KEY_UP": [
+      {
+        "params": [], 
+        "accion": "SET_DIRECTION", 
+        "objeto": "UP"
+      }
+    ], 
+    "ON_KEY_LEFT": [
+      {
+        "params": [], 
+        "accion": "SET_DIRECTION", 
+        "objeto": "LEFT"
       }
     ]
-  }, 
-  "colors": []
+  }
 }

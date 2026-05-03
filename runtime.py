@@ -114,7 +114,6 @@ class Juego:
                     img_path = os.path.join(base_dir, 'assets', archivo)
                     self.img_nyancat_trail[dir_name] = tk.PhotoImage(file=img_path)
 
-
     def run(self):
         # Inicia el ciclo principal de juego de Tkinter
         self.root.after(50, self.game_loop) 
