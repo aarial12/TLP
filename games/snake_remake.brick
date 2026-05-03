@@ -4,7 +4,7 @@ GAME_TYPE SNAKE
 GAME_GRID (20, 20)
 
 # --- Definicion de Elementos ---
-DEFINE SHAPE CAT:
+DEFINE SHAPE TRIANGLE:
   STATE 1:
     [1]
 END

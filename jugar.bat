@@ -19,7 +19,7 @@ echo Compilando el juego: %1...
 echo ----------------------------------
 
 REM Ejecuta el compilador de Python.
-C:\Python27\python.exe .\compiler.py .\games\%1.brick
+C:\Users\Usuario\.pyenv\pyenv-win\versions\pypy2.7-v7.3.21-win64\python.exe .\compiler.py .\games\%1.brick
 
 REM Verifica si el comando anterior (la compilacion) fallo.
 if errorlevel 1 (
@@ -37,7 +37,7 @@ REM Se elimina la pausa para iniciar la GUI inmediatamente
 
 REM --- FASE 2: EJECUCION ---
 REM Ejecuta el motor del juego (runtime.py modificado con GUI).
-C:\Python27\python.exe .\runtime.py .\games\%1.json
+C:\Users\Usuario\.pyenv\pyenv-win\versions\pypy2.7-v7.3.21-win64\python.exe .\runtime.py .\games\%1.json
 
 REM Fin del script.
 echo.
