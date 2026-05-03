@@ -1,6 +1,6 @@
 {
   "shapes": {
-    "CAT": [
+    "PIXEL": [
       1, 
       [
         [
@@ -17,7 +17,8 @@
     "grid_size": [
       20, 
       20
-    ]
+    ], 
+    "dificulty": "NYAN"
   }, 
   "events": {
     "ON_KEY_DOWN": [

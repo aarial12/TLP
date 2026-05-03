@@ -65,8 +65,10 @@ class Juego:
             self.serpiente_cuerpo = []
             self.serpiente_direccion = (1, 0)
             self.posicion_comida = None
+            self.posicion_veneno = None
             self.velocidad_gravedad = 0.15
             self.color_pieza = None
+            self.dificultad = 'BABY' if 'dificulty' not in self.datos_juego.get('config') else self.datos_juego['config']['dificulty']
         
         self.timer_gravedad = 0
         self.ejecutar_evento('ON_START')
@@ -147,7 +149,8 @@ class Juego:
         COLOR_SNAKE_CABEZA = '#00FF00' # Verde brillante
         COLOR_SNAKE_CUERPO = '#33CC33' # Verde normal
         COLOR_FOOD = '#FF0000'      # Rojo
-        
+        COLOR_VENENO = '#FF0199'
+
         # 1. Dibujar la cuadricula estatica (grid base)
         for y in range(self.alto):
             for x in range(self.ancho):
@@ -170,6 +173,10 @@ class Juego:
             if self.posicion_comida:
                 x, y = self.posicion_comida
                 self.dibujar_celda(x, y, COLOR_FOOD)
+            if self.posicion_veneno:
+                x, y = self.posicion_veneno
+                self.dibujar_celda(x, y, COLOR_VENENO)
+
             # Cuerpo de la Serpiente
             for i, segmento in enumerate(self.serpiente_cuerpo):
                 x, y = segmento
@@ -205,8 +212,6 @@ class Juego:
         x2, y2 = x * ts, y * ts
         x1, y1 = x2, y2 + ts
         x3, y3 = x2 + ts, (y2 + y1)/2
-
-        #ts = self.taman_celda # Alias para taman de celda
         #x1, y1 = x * ts, y * ts
         #x2, y2 = x1, y1 + ts
         #x3, y3 = x1 - ts, (y1 + y2)/2
@@ -351,6 +356,13 @@ class Juego:
                 self.posicion_comida = (x, y)
                 break
 
+        if ((self.puntuacion % 100) == 0) and self.dificultad != 'BABY':
+            while True:
+                x, y = random.randint(0, self.ancho - 1), random.randint(0, self.alto - 1)
+                if (x, y) not in self.serpiente_cuerpo:
+                    self.posicion_veneno = (x, y)
+                    break
+
     def snake_mover_jugador(self):
         if not self.serpiente_cuerpo: return
         cabeza_x, cabeza_y = self.serpiente_cuerpo[0]
@@ -366,6 +378,15 @@ class Juego:
             return
 
         self.serpiente_cuerpo.insert(0, nueva_cabeza)
+
+        if nueva_cabeza == self.posicion_veneno: 
+            if self.dificultad == 'ENTUSIASTA':
+                
+                self.puntuacion = 0  
+            else: 
+                self.juego_terminado = True
+            
+            self.posicion_veneno = None
         
         if nueva_cabeza == self.posicion_comida:
             self.ejecutar_evento('ON_EAT_FOOD')

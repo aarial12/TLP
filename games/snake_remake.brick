@@ -3,8 +3,10 @@ GAME_TYPE SNAKE
 
 GAME_GRID (20, 20)
 
+DIFICULTY NYAN
+
 # --- Definicion de Elementos ---
-DEFINE SHAPE CAT:
+DEFINE SHAPE PIXEL:
   STATE 1:
     [1]
 END
