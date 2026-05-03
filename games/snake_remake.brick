@@ -6,7 +6,7 @@ GAME_GRID (20, 20)
 DIFICULTY NYAN
 
 # --- Definicion de Elementos ---
-DEFINE SHAPE PIXEL:
+DEFINE SHAPE TRIANGLE:
   STATE 1:
     [1]
 END
