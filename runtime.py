@@ -66,9 +66,9 @@ class Juego:
             self.serpiente_direccion = (1, 0)
             self.posicion_comida = None
             self.posicion_veneno = None
-            self.velocidad_gravedad = 0.15
             self.color_pieza = None
             self.dificultad = 'BABY' if 'dificulty' not in self.datos_juego.get('config') else self.datos_juego['config']['dificulty']
+            self.velocidad_gravedad = 0.1 if self.dificultad == 'NYAN' else 0.15
             self.crecimiento_pendiente = 0
             self.timer_gravedad = 0
             self.ejecutar_evento('ON_START')
