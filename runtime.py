@@ -66,40 +66,49 @@ class Juego:
             self.serpiente_direccion = (1, 0)
             self.posicion_comida = None
             self.posicion_veneno = None
+            self.posicion_nube = None
             self.velocidad_gravedad = 0.15
             self.color_pieza = None
-            self.dificultad = 'BABY' if 'dificulty' not in self.datos_juego.get('config') else self.datos_juego['config']['dificulty']
+            self.dificultad = 'CLASSIC' if 'dificulty' not in self.datos_juego.get('config') else self.datos_juego['config']['dificulty']
             self.crecimiento_pendiente = 0
-            self.timer_gravedad = 0
-            self.ejecutar_evento('ON_START')
-            self.timer_id = None # Para controlar el loop de Tkinter
 
             shapes = self.datos_juego.get('shapes', {})
             self.usar_nyancat = 'CAT' in shapes
             self.img_nyancat = {}
             self.img_nyancat_body = {}
             self.img_nyancat_trail = {}
+            
+            #Sprites
+            if self.dificultad != 'CLASSIC':
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                food_path = os.path.join(base_dir, 'assets', 'snake', 'fruits', 'food.png')
+                poison_path = os.path.join(base_dir, 'assets', 'snake', 'fruits', 'poison1.png')
+                cloud_path = os.path.join(base_dir, 'assets', 'snake', 'objects', 'cloud.png')
+                self.img_food = tk.PhotoImage(file=food_path) if os.path.exists(food_path) else None
+                self.img_poison = tk.PhotoImage(file=poison_path) if os.path.exists(poison_path) else None
+                self.img_cloud = tk.PhotoImage(file=cloud_path) if os.path.exists(cloud_path) else None
 
             if self.usar_nyancat:
-                base_dir = os.path.dirname(os.path.abspath(__file__))
+
+                base = 'snake/nyancat/'
                 direcciones = {
-                    'RIGHT': 'nyancat_der.png',
-                    'LEFT': 'nyancat_izq.png',
-                    'UP': 'nyancat_arr.png',
-                    'DOWN': 'nyancat_abj.png'
+                    'RIGHT': base + 'head/nyancat_der.png',
+                    'LEFT':  base + 'head/nyancat_izq.png',
+                    'UP':    base + 'head/nyancat_arr.png',
+                    'DOWN':  base + 'head/nyancat_abj.png'
                 }
 
                 body_files = {
-                    'RIGHT': 'nyancat_body_der.png',
-                    'LEFT':  'nyancat_body_izq.png',
-                    'UP':    'nyancat_body_arr.png',
-                    'DOWN':  'nyancat_body_abj.png'
+                    'RIGHT': base + 'body/nyancat_body_der.png',
+                    'LEFT':  base + 'body/nyancat_body_izq.png',
+                    'UP':    base + 'body/nyancat_body_arr.png',
+                    'DOWN':  base + 'body/nyancat_body_abj.png'
                 }
                 trail_files = {
-                    'RIGHT': 'nyancat_trail_der.png',
-                    'LEFT':  'nyancat_trail_izq.png',
-                    'UP':    'nyancat_trail_arr.png',
-                    'DOWN':  'nyancat_trail_abj.png'
+                    'RIGHT': base + 'trail/nyancat_trail_der.png',
+                    'LEFT':  base + 'trail/nyancat_trail_izq.png',
+                    'UP':    base + 'trail/nyancat_trail_arr.png',
+                    'DOWN':  base + 'trail/nyancat_trail_abj.png'
                 }
             
 
@@ -113,6 +122,10 @@ class Juego:
                 for dir_name, archivo in trail_files.items():
                     img_path = os.path.join(base_dir, 'assets', archivo)
                     self.img_nyancat_trail[dir_name] = tk.PhotoImage(file=img_path)
+                    
+        self.timer_gravedad = 0
+        self.ejecutar_evento('ON_START')
+        self.timer_id = None # Para controlar el loop de Tkinter
 
     def run(self):
         # Inicia el ciclo principal de juego de Tkinter
@@ -123,10 +136,13 @@ class Juego:
         if self.juego_terminado:
             self.mostrar_game_over()
             return
+        
+        if self.dificultad == 'CAT':
+            self.velocidad_gravedad = 0.075
 
         # Logica de TICK/Gravedad
         # El loop se ejecuta cada 50ms (0.05 segundos)
-        self.timer_gravedad += 0.1 
+        self.timer_gravedad += 0.05 
         if self.timer_gravedad >= self.velocidad_gravedad:
             self.timer_gravedad = 0
             self.ejecutar_evento('ON_TICK')
@@ -190,6 +206,7 @@ class Juego:
         COLOR_SNAKE_CUERPO = '#33CC33' # Verde normal
         COLOR_FOOD = '#FF0000'      # Rojo
         COLOR_VENENO = '#FF0199'
+        COLOR_NUBE = '#3B6294'
 
         # 1. Dibujar la cuadricula estatica (grid base)
         for y in range(self.alto):
@@ -211,10 +228,28 @@ class Juego:
         if self.tipo_juego == 'SNAKE':
             if self.posicion_comida:
                 x, y = self.posicion_comida
-                self.dibujar_celda(x, y, COLOR_FOOD)
+                if getattr(self, 'img_food', None):
+                    ts = self.taman_celda
+                    self.canvas.create_image(x * ts, y * ts, image=self.img_food, anchor='nw')
+                else:
+                    self.dibujar_celda(x, y, COLOR_FOOD)
+
             if self.posicion_veneno:
                 x, y = self.posicion_veneno
-                self.dibujar_celda(x, y, COLOR_VENENO)
+                if getattr(self, 'img_poison', None):
+                    ts = self.taman_celda
+                    self.canvas.create_image(x * ts, y * ts, image=self.img_poison, anchor='nw')
+                else:
+                    self.dibujar_celda(x, y, COLOR_VENENO)
+
+            if self.posicion_veneno:
+                x, y = self.posicion_nube
+                if getattr(self, 'img_poison', None):
+                    ts = self.taman_celda
+                    self.canvas.create_image(x * ts, y * ts, image=self.img_cloud, anchor='nw')
+                else:
+                    self.dibujar_celda(x, y, COLOR_NUBE)
+
 
 
             for i, segmento in enumerate(self.serpiente_cuerpo):
@@ -466,11 +501,18 @@ class Juego:
                 self.posicion_comida = (x, y)
                 break
 
-        if ((self.puntuacion % 100) == 0) and self.dificultad != 'BABY':
+        if ((self.puntuacion % 100) == 0) and self.dificultad != 'BABY' and self.dificultad != 'CLASSIC':
             while True:
                 x, y = random.randint(0, self.ancho - 1), random.randint(0, self.alto - 1)
                 if (x, y) not in self.serpiente_cuerpo:
                     self.posicion_veneno = (x, y)
+                    break
+
+        if ((self.puntuacion % 50) == 0) and self.dificultad == 'CAT':
+            while True:
+                x, y = random.randint(0, self.ancho - 1), random.randint(0, self.alto - 1)
+                if (x, y) not in self.serpiente_cuerpo:
+                    self.posicion_nube = (x, y)
                     break
 
     def snake_mover_jugador(self):
@@ -483,15 +525,25 @@ class Juego:
             self.ejecutar_evento('ON_COLLISION_WALL')
             return
             
-        if nueva_cabeza in self.serpiente_cuerpo[:-1]:
+        if nueva_cabeza in self.serpiente_cuerpo[:-1] and self.dificultad != 'CAT':
             self.ejecutar_evento('ON_COLLISION_SELF')
             return
+        elif nueva_cabeza in self.serpiente_cuerpo[:-1] and self.dificultad == 'CAT':
+            if self.puntuacion == 0:
+                self.ejecutar_evento('ON_COLLISION_WALL')
+            else:
+                self.puntuacion = 0
 
         self.serpiente_cuerpo.insert(0, nueva_cabeza)
 
+        if nueva_cabeza == self.posicion_nube:
+            if self.puntuacion == 0:
+                self.juego_terminado = True
+            else:
+                self.puntuacion = 0
+
         if nueva_cabeza == self.posicion_veneno: 
             if self.dificultad == 'ENTUSIASTA':
-                
                 self.puntuacion = 0  
             else: 
                 self.juego_terminado = True
