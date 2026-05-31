@@ -1,4 +1,11 @@
 {
+  "tipo_juego": "TETRIS", 
+  "config": {
+    "grid_size": [
+      10, 
+      30
+    ]
+  }, 
   "shapes": {
     "Z_PIECE": [
       19, 
@@ -73,31 +80,6 @@
         ]
       ]
     ], 
-    "O_SHAPE": [
-      5, 
-      [
-        [
-          [
-            1, 
-            1
-          ], 
-          [
-            1, 
-            1
-          ]
-        ]
-      ]
-    ], 
-    "POWER_UP": [
-      0, 
-      [
-        [
-          [
-            1
-          ]
-        ]
-      ]
-    ], 
     "S_PIECE": [
       19, 
       [
@@ -166,6 +148,130 @@
           [
             0, 
             1, 
+            0
+          ]
+        ]
+      ]
+    ], 
+    "O_SHAPE": [
+      5, 
+      [
+        [
+          [
+            1, 
+            1
+          ], 
+          [
+            1, 
+            1
+          ]
+        ]
+      ]
+    ], 
+    "I_PIECE": [
+      5, 
+      [
+        [
+          [
+            0, 
+            1, 
+            0, 
+            0
+          ], 
+          [
+            0, 
+            1, 
+            0, 
+            0
+          ], 
+          [
+            0, 
+            1, 
+            0, 
+            0
+          ], 
+          [
+            0, 
+            1, 
+            0, 
+            0
+          ]
+        ], 
+        [
+          [
+            0, 
+            0, 
+            0, 
+            0
+          ], 
+          [
+            0, 
+            0, 
+            0, 
+            0
+          ], 
+          [
+            1, 
+            1, 
+            1, 
+            1
+          ], 
+          [
+            0, 
+            0, 
+            0, 
+            0
+          ]
+        ], 
+        [
+          [
+            0, 
+            0, 
+            1, 
+            0
+          ], 
+          [
+            0, 
+            0, 
+            1, 
+            0
+          ], 
+          [
+            0, 
+            0, 
+            1, 
+            0
+          ], 
+          [
+            0, 
+            0, 
+            1, 
+            0
+          ]
+        ], 
+        [
+          [
+            0, 
+            0, 
+            0, 
+            0
+          ], 
+          [
+            1, 
+            1, 
+            1, 
+            1
+          ], 
+          [
+            0, 
+            0, 
+            0, 
+            0
+          ], 
+          [
+            0, 
+            0, 
+            0, 
             0
           ]
         ]
@@ -390,114 +496,81 @@
         ]
       ]
     ], 
-    "I_PIECE": [
-      5, 
+    "POWER_UP": [
+      0, 
       [
         [
           [
-            0, 
-            1, 
-            0, 
-            0
-          ], 
-          [
-            0, 
-            1, 
-            0, 
-            0
-          ], 
-          [
-            0, 
-            1, 
-            0, 
-            0
-          ], 
-          [
-            0, 
-            1, 
-            0, 
-            0
-          ]
-        ], 
-        [
-          [
-            0, 
-            0, 
-            0, 
-            0
-          ], 
-          [
-            0, 
-            0, 
-            0, 
-            0
-          ], 
-          [
-            1, 
-            1, 
-            1, 
             1
-          ], 
-          [
-            0, 
-            0, 
-            0, 
-            0
-          ]
-        ], 
-        [
-          [
-            0, 
-            0, 
-            1, 
-            0
-          ], 
-          [
-            0, 
-            0, 
-            1, 
-            0
-          ], 
-          [
-            0, 
-            0, 
-            1, 
-            0
-          ], 
-          [
-            0, 
-            0, 
-            1, 
-            0
-          ]
-        ], 
-        [
-          [
-            0, 
-            0, 
-            0, 
-            0
-          ], 
-          [
-            1, 
-            1, 
-            1, 
-            1
-          ], 
-          [
-            0, 
-            0, 
-            0, 
-            0
-          ], 
-          [
-            0, 
-            0, 
-            0, 
-            0
           ]
         ]
       ]
+    ]
+  }, 
+  "events": {
+    "ON_START": [
+      {
+        "accion": "SPAWN", 
+        "objeto": "RANDOM_SHAPE", 
+        "params": []
+      }
+    ], 
+    "ON_TICK": [
+      {
+        "accion": "MOVE", 
+        "objeto": "CURRENT_PIECE", 
+        "params": [
+          "DOWN"
+        ]
+      }
+    ], 
+    "ON_LINE_CLEAR": [
+      {
+        "accion": "INCREASE_SCORE", 
+        "objeto": "100", 
+        "params": []
+      }
+    ], 
+    "ON_SECRET": [
+      {
+        "accion": "SPAWN", 
+        "objeto": "POWER_UP", 
+        "params": []
+      }
+    ], 
+    "ON_KEY_LEFT": [
+      {
+        "accion": "MOVE", 
+        "objeto": "CURRENT_PIECE", 
+        "params": [
+          "LEFT"
+        ]
+      }
+    ], 
+    "ON_KEY_RIGHT": [
+      {
+        "accion": "MOVE", 
+        "objeto": "CURRENT_PIECE", 
+        "params": [
+          "RIGHT"
+        ]
+      }
+    ], 
+    "ON_KEY_DOWN": [
+      {
+        "accion": "MOVE", 
+        "objeto": "CURRENT_PIECE", 
+        "params": [
+          "DOWN"
+        ]
+      }
+    ], 
+    "ON_KEY_UP": [
+      {
+        "accion": "ROTATE", 
+        "objeto": "CURRENT_PIECE", 
+        "params": []
+      }
     ]
   }, 
   "colors": [
@@ -508,78 +581,5 @@
     "FF0000", 
     "FFA500", 
     "800080"
-  ], 
-  "tipo_juego": "TETRIS", 
-  "config": {
-    "grid_size": [
-      10, 
-      30
-    ]
-  }, 
-  "events": {
-    "ON_KEY_DOWN": [
-      {
-        "params": [
-          "DOWN"
-        ], 
-        "accion": "MOVE", 
-        "objeto": "CURRENT_PIECE"
-      }
-    ], 
-    "ON_KEY_UP": [
-      {
-        "params": [], 
-        "accion": "ROTATE", 
-        "objeto": "CURRENT_PIECE"
-      }
-    ], 
-    "ON_TICK": [
-      {
-        "params": [
-          "DOWN"
-        ], 
-        "accion": "MOVE", 
-        "objeto": "CURRENT_PIECE"
-      }
-    ], 
-    "ON_LINE_CLEAR": [
-      {
-        "params": [], 
-        "accion": "INCREASE_SCORE", 
-        "objeto": "100"
-      }
-    ], 
-    "ON_START": [
-      {
-        "params": [], 
-        "accion": "SPAWN", 
-        "objeto": "RANDOM_SHAPE"
-      }
-    ], 
-    "ON_KEY_RIGHT": [
-      {
-        "params": [
-          "RIGHT"
-        ], 
-        "accion": "MOVE", 
-        "objeto": "CURRENT_PIECE"
-      }
-    ], 
-    "ON_KEY_LEFT": [
-      {
-        "params": [
-          "LEFT"
-        ], 
-        "accion": "MOVE", 
-        "objeto": "CURRENT_PIECE"
-      }
-    ], 
-    "ON_SECRET": [
-      {
-        "params": [], 
-        "accion": "SPAWN", 
-        "objeto": "POWER_UP"
-      }
-    ]
-  }
+  ]
 }
