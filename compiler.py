@@ -27,6 +27,8 @@ class Parser:
                 self.parsear_grid()
             elif token_actual == 'DIFICULTY':
                 self.parsear_dificultad()
+            elif token_actual in ('POWERUP_INVULNERABILITY', 'INVULNERABILITY'):
+                self.parsear_powerup_invulnerability()
             elif token_actual == 'DEFINE':
                 self.parsear_shape()
             elif token_actual == 'ON':
@@ -65,6 +67,11 @@ class Parser:
         self.consumir('DIFICULTY')
         dificulty = self.consumir()
         self.ast['config']['dificulty'] = dificulty
+
+    def parsear_powerup_invulnerability(self):
+        self.consumir()
+        duracion = int(self.consumir())
+        self.ast['config']['powerup_invulnerability'] = duracion
 
     def parsear_shape(self):
         self.consumir('DEFINE')

@@ -46,6 +46,9 @@ class Juego:
         self.label_score = tk.Label(self.marco_score, text="PUNTUACION\n0", bg='#222222', fg='white', font=('Consolas', 16, 'bold'))
         self.label_score.pack(pady=40, padx=10)
         
+        self.label_estado = tk.Label(self.marco_score, text="", bg='#222222', fg='#ffd700', font=('Consolas', 11, 'bold'))
+        self.label_estado.pack(pady=10, padx=10)
+
         # Nota: Se ha eliminado 'Q: Salir' de los controles en pantalla
         self.label_controles = tk.Label(self.marco_score, text="CONTROLES\nFlechas: Mover/Rotar", bg='#222222', fg='gray', font=('Consolas', 10))
         self.label_controles.pack(pady=20, padx=10)
@@ -67,10 +70,13 @@ class Juego:
             self.posicion_comida = None
             self.posicion_veneno = None
             self.posicion_nube = None
+            self.posicion_powerup = None
             self.velocidad_gravedad = 0.15
             self.color_pieza = None
             self.dificultad = 'CLASSIC' if 'dificulty' not in self.datos_juego.get('config') else self.datos_juego['config']['dificulty']
             self.crecimiento_pendiente = 0
+            self.invulnerabilidad_segundos = float(self.datos_juego.get('config', {}).get('powerup_invulnerability', 3))
+            self.invulnerable_hasta = 0
 
             shapes = self.datos_juego.get('shapes', {})
             self.usar_nyancat = 'CAT' in shapes
@@ -79,36 +85,40 @@ class Juego:
             self.img_nyancat_trail = {}
             
             #Sprites
+            file_format = ".gif"
+
             if self.dificultad != 'CLASSIC':
                 base_dir = os.path.dirname(os.path.abspath(__file__))
-                food_path = os.path.join(base_dir, 'assets', 'snake', 'fruits', 'food.png')
-                poison_path = os.path.join(base_dir, 'assets', 'snake', 'fruits', 'poison1.png')
-                cloud_path = os.path.join(base_dir, 'assets', 'snake', 'objects', 'cloud.png')
+                food_path = os.path.join(base_dir, 'assets', 'snake', 'fruits', 'food' + file_format)
+                poison_path = os.path.join(base_dir, 'assets', 'snake', 'fruits', 'poison' + file_format)
+                cloud_path = os.path.join(base_dir, 'assets', 'snake', 'objects', 'cloud' + file_format)
+                powerup_path = os.path.join(base_dir, 'assets', 'snake', 'fruits', 'power-up' + file_format)
                 self.img_food = tk.PhotoImage(file=food_path) if os.path.exists(food_path) else None
                 self.img_poison = tk.PhotoImage(file=poison_path) if os.path.exists(poison_path) else None
                 self.img_cloud = tk.PhotoImage(file=cloud_path) if os.path.exists(cloud_path) else None
+                self.img_powerup = tk.PhotoImage(file=powerup_path) if os.path.exists(powerup_path) else None
 
             if self.usar_nyancat:
 
                 base = 'snake/nyancat/'
                 direcciones = {
-                    'RIGHT': base + 'head/nyancat_der.png',
-                    'LEFT':  base + 'head/nyancat_izq.png',
-                    'UP':    base + 'head/nyancat_arr.png',
-                    'DOWN':  base + 'head/nyancat_abj.png'
+                    'RIGHT': base + 'head/nyancat_der' + file_format,
+                    'LEFT':  base + 'head/nyancat_izq' + file_format,
+                    'UP':    base + 'head/nyancat_arr' + file_format,
+                    'DOWN':  base + 'head/nyancat_abj' + file_format
                 }
 
                 body_files = {
-                    'RIGHT': base + 'body/nyancat_body_der.png',
-                    'LEFT':  base + 'body/nyancat_body_izq.png',
-                    'UP':    base + 'body/nyancat_body_arr.png',
-                    'DOWN':  base + 'body/nyancat_body_abj.png'
+                    'RIGHT': base + 'body/nyancat_body_der' + file_format,
+                    'LEFT':  base + 'body/nyancat_body_izq' + file_format,
+                    'UP':    base + 'body/nyancat_body_arr' + file_format,
+                    'DOWN':  base + 'body/nyancat_body_abj' + file_format
                 }
                 trail_files = {
-                    'RIGHT': base + 'trail/nyancat_trail_der.png',
-                    'LEFT':  base + 'trail/nyancat_trail_izq.png',
-                    'UP':    base + 'trail/nyancat_trail_arr.png',
-                    'DOWN':  base + 'trail/nyancat_trail_abj.png'
+                    'RIGHT': base + 'trail/nyancat_trail_der' + file_format,
+                    'LEFT':  base + 'trail/nyancat_trail_izq' + file_format,
+                    'UP':    base + 'trail/nyancat_trail_arr' + file_format,
+                    'DOWN':  base + 'trail/nyancat_trail_abj' + file_format
                 }
             
 
@@ -147,6 +157,7 @@ class Juego:
             self.timer_gravedad = 0
             self.ejecutar_evento('ON_TICK')
 
+        self.actualizar_estado_invulnerabilidad()
         self.dibujar()
 
         # Programa el siguiente ciclo de juego
@@ -198,15 +209,20 @@ class Juego:
     def dibujar(self):
         self.canvas.delete("all") # Borrar todo en cada frame
         self.label_score.config(text="PUNTUACION\n" + str(self.puntuacion))
+        self.label_estado.config(text=self.texto_estado_snake())
         
         # Colores
         COLOR_GRID_FIJA = '#343434' # Gris oscuro para las celdas fijadas (Tetris)
         COLOR_PIEZA = self.color_pieza
-        COLOR_SNAKE_CABEZA = '#00FF00' # Verde brillante
-        COLOR_SNAKE_CUERPO = '#33CC33' # Verde normal
+        snake_invulnerable = self.esta_invulnerable()
+        parpadeo = int(time.time() * 10) % 2 == 0
+        COLOR_SNAKE_CABEZA = '#FFFFFF' if snake_invulnerable and parpadeo else '#00FFFF'
+        COLOR_SNAKE_CUERPO = '#7FFFD4' if snake_invulnerable and parpadeo else '#33CC33'
+        COLOR_SNAKE_BORDE = '#FFFFFF' if snake_invulnerable else '#000000'
         COLOR_FOOD = '#FF0000'      # Rojo
         COLOR_VENENO = '#FF0199'
         COLOR_NUBE = '#3B6294'
+        COLOR_POWERUP = '#ffd700'
 
         # 1. Dibujar la cuadricula estatica (grid base)
         for y in range(self.alto):
@@ -242,13 +258,21 @@ class Juego:
                 else:
                     self.dibujar_celda(x, y, COLOR_VENENO)
 
-            if self.posicion_veneno:
+            if self.posicion_nube:
                 x, y = self.posicion_nube
-                if getattr(self, 'img_poison', None):
+                if getattr(self, 'img_cloud', None):
                     ts = self.taman_celda
                     self.canvas.create_image(x * ts, y * ts, image=self.img_cloud, anchor='nw')
                 else:
                     self.dibujar_celda(x, y, COLOR_NUBE)
+
+            if self.posicion_powerup:
+                x, y = self.posicion_powerup
+                if getattr(self, 'img_powerup', None):
+                    ts = self.taman_celda
+                    self.canvas.create_image(x * ts, y * ts, image=self.img_powerup, anchor='nw')
+                else:
+                    self.dibujar_celda(x, y, COLOR_POWERUP)
 
 
 
@@ -268,32 +292,32 @@ class Juego:
                     shape_type = shape_names[0] if shape_names else 'PIXEL'
 
                     if i == 0 and shape_type == 'PIXEL':
-                        self.dibujar_celda(x, y, COLOR_SNAKE_CABEZA)
+                        self.dibujar_celda(x, y, COLOR_SNAKE_CABEZA, COLOR_SNAKE_BORDE, 2 if snake_invulnerable else 1)
                     elif i == 0 and shape_type == 'TRIANGLE':
-                        self.dibujar_triangulo(x, y, COLOR_SNAKE_CABEZA, direccion_segmento)
+                        self.dibujar_triangulo(x, y, COLOR_SNAKE_CABEZA, direccion_segmento, COLOR_SNAKE_BORDE, 2 if snake_invulnerable else 1)
                     elif i == 0 and shape_type == 'CIRCLE':
-                        self.dibujar_triangulo(x, y, COLOR_SNAKE_CABEZA)
+                        self.dibujar_triangulo(x, y, COLOR_SNAKE_CABEZA, direccion_segmento, COLOR_SNAKE_BORDE, 2 if snake_invulnerable else 1)
                     elif shape_type == 'CIRCLE':
-                        self.dibujar_circulo(x, y, COLOR_SNAKE_CUERPO)
+                        self.dibujar_circulo(x, y, COLOR_SNAKE_CUERPO, COLOR_SNAKE_BORDE, 2 if snake_invulnerable else 1)
                     elif shape_type == 'TRIANGLE':
-                        self.dibujar_triangulo(x, y, COLOR_SNAKE_CUERPO, direccion_segmento)
+                        self.dibujar_triangulo(x, y, COLOR_SNAKE_CUERPO, direccion_segmento, COLOR_SNAKE_BORDE, 2 if snake_invulnerable else 1)
                     else:
-                        self.dibujar_celda(x, y, COLOR_SNAKE_CUERPO)
+                        self.dibujar_celda(x, y, COLOR_SNAKE_CUERPO, COLOR_SNAKE_BORDE, 2 if snake_invulnerable else 1)
 
-    def dibujar_celda(self, x, y, color):
+    def dibujar_celda(self, x, y, color, outline='#000000', width=1):
         ts = self.taman_celda # Alias para taman de celda
         x1, y1 = x * ts, y * ts
         x2, y2 = x1 + ts, y1 + ts
-        self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline='#000000')
+        self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline=outline, width=width)
 
-    def dibujar_circulo(self, x, y, color):
+    def dibujar_circulo(self, x, y, color, outline='#000000', width=1):
         ts = self.taman_celda # Alias para taman de celda
         x1, y1 = x * ts, y * ts
         x2, y2 = x1 + ts, y1 + ts
-        self.canvas.create_oval(x1, y1, x2, y2, fill=color, outline='#000000')
+        self.canvas.create_oval(x1, y1, x2, y2, fill=color, outline=outline, width=width)
     
 
-    def dibujar_triangulo(self, x, y, color, direccion=(1, 0)):
+    def dibujar_triangulo(self, x, y, color, direccion=(1, 0), outline='#000000', width=1):
         ts = self.taman_celda
         x0 = x * ts
         y0 = y * ts
@@ -315,7 +339,7 @@ class Juego:
             x2, y2 = x0 + ts, y0
             x3, y3 = x0 + ts / 2, y0 + ts
 
-        self.canvas.create_polygon(x1, y1, x2, y2, x3, y3, fill=color, outline='#000000')
+        self.canvas.create_polygon(x1, y1, x2, y2, x3, y3, fill=color, outline=outline, width=width)
     
     def dibujar_nyancat(self, x, y, direccion=(1, 0)):
         ts = self.taman_celda
@@ -514,21 +538,34 @@ class Juego:
                 if (x, y) not in self.serpiente_cuerpo:
                     self.posicion_nube = (x, y)
                     break
+        
+        if ((self.puntuacion % 200) == 0) and (self.puntuacion != 0) and (self.dificultad == 'CAT' or self.dificultad == 'ENTUSIASTA'):
+            while True:
+                x, y = random.randint(0, self.ancho - 1), random.randint(0, self.alto - 1)
+                if (x, y) not in self.serpiente_cuerpo:
+                    self.posicion_powerup = (x, y)
+                    break
 
     def snake_mover_jugador(self):
         if not self.serpiente_cuerpo: return
         cabeza_x, cabeza_y = self.serpiente_cuerpo[0]
         dir_x, dir_y = self.serpiente_direccion
         nueva_cabeza = (cabeza_x + dir_x, cabeza_y + dir_y)
+        invulnerable = self.esta_invulnerable()
 
         if not (0 <= nueva_cabeza[0] < self.ancho and 0 <= nueva_cabeza[1] < self.alto):
-            self.ejecutar_evento('ON_COLLISION_WALL')
-            return
-            
-        if nueva_cabeza in self.serpiente_cuerpo[:-1] and self.dificultad != 'CAT':
+            if invulnerable:
+                self.serpiente_direccion = (-dir_x, -dir_y)
+                dir_x, dir_y = self.serpiente_direccion
+                nueva_cabeza = (cabeza_x + dir_x, cabeza_y + dir_y)
+            else:
+                self.ejecutar_evento('ON_COLLISION_WALL')
+                return
+
+        if not invulnerable and nueva_cabeza in self.serpiente_cuerpo[:-1] and self.dificultad != 'CAT':
             self.ejecutar_evento('ON_COLLISION_SELF')
             return
-        elif nueva_cabeza in self.serpiente_cuerpo[:-1] and self.dificultad == 'CAT':
+        elif not invulnerable and nueva_cabeza in self.serpiente_cuerpo[:-1] and self.dificultad == 'CAT':
             if self.puntuacion == 0:
                 self.ejecutar_evento('ON_COLLISION_WALL')
             else:
@@ -537,18 +574,20 @@ class Juego:
         self.serpiente_cuerpo.insert(0, nueva_cabeza)
 
         if nueva_cabeza == self.posicion_nube:
-            if self.puntuacion == 0:
-                self.juego_terminado = True
-            else:
-                self.puntuacion = 0
+            if not invulnerable:
+                if self.puntuacion == 0:
+                    self.juego_terminado = True
+                else:
+                    self.puntuacion = 0
 
-        if nueva_cabeza == self.posicion_veneno: 
-            if self.dificultad == 'ENTUSIASTA':
-                self.puntuacion = 0  
-            else: 
-                self.juego_terminado = True
-            
-            self.posicion_veneno = None
+        if nueva_cabeza == self.posicion_veneno:
+            if not invulnerable:
+                if self.dificultad == 'ENTUSIASTA':
+                    self.puntuacion = 0  
+                else: 
+                    self.juego_terminado = True
+                
+                self.posicion_veneno = None
         
         if nueva_cabeza == self.posicion_comida:
             self.ejecutar_evento('ON_EAT_FOOD')
@@ -556,8 +595,20 @@ class Juego:
                 self.crecimiento_pendiente -= 1
             else:
                 self.serpiente_cuerpo.pop()
+
         elif self.crecimiento_pendiente > 0:
             self.crecimiento_pendiente -= 1
+
+        elif nueva_cabeza == self.posicion_powerup:
+            self.ejecutar_evento('ON_EAT_POWERUP')
+            self.ejecutar_evento('ON_EAT_FOOD')
+            self.posicion_powerup = None
+            self.activar_invulnerabilidad()
+            if self.crecimiento_pendiente > 0:
+                self.crecimiento_pendiente -= 1
+            else:
+                self.serpiente_cuerpo.pop()
+
         else:
             self.serpiente_cuerpo.pop()
 
@@ -585,6 +636,28 @@ class Juego:
 
     def snake_crecer(self):
         self.crecimiento_pendiente += 1
+
+    def activar_invulnerabilidad(self):
+        if self.invulnerabilidad_segundos > 0:
+            self.invulnerable_hasta = max(self.invulnerable_hasta, time.time()) + self.invulnerabilidad_segundos
+
+    def esta_invulnerable(self):
+        return self.tipo_juego == 'SNAKE' and getattr(self, 'invulnerable_hasta', 0) > time.time()
+
+    def actualizar_estado_invulnerabilidad(self):
+        if self.tipo_juego != 'SNAKE':
+            return
+        if self.esta_invulnerable():
+            restantes = max(0.0, self.invulnerable_hasta - time.time())
+            self.label_estado.config(text="INVULNERABLE\n{0:.1f}s".format(restantes))
+        else:
+            self.label_estado.config(text="")
+
+    def texto_estado_snake(self):
+        if self.esta_invulnerable():
+            restantes = max(0.0, self.invulnerable_hasta - time.time())
+            return "INVULNERABLE\n{0:.1f}s".format(restantes)
+        return ""
 
 
     # METODOS DE SALIDA (ADAPTADOS A GUI)
