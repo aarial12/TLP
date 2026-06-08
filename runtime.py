@@ -291,7 +291,6 @@ class Juego:
         x1, y1 = x * ts, y * ts
         x2, y2 = x1 + ts, y1 + ts
         self.canvas.create_oval(x1, y1, x2, y2, fill=color, outline='#000000')
-    
 
     def dibujar_triangulo(self, x, y, color, direccion=(1, 0)):
         ts = self.taman_celda
