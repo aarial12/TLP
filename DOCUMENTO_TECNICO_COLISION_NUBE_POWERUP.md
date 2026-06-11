@@ -2,7 +2,6 @@
 
 **Proyecto:** BrickScript (TLP)  
 **Fecha:** Junio 2026  
-**Versión:** 1.0  
 
 ---
 
