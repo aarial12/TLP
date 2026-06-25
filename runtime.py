@@ -415,6 +415,9 @@ class Juego:
                 
                 if verbo == 'GAME_OVER': self.juego_terminado = True
 
+                if self.tipo_juego == 'SNAKE' and verbo == 'DURATION':
+                    self.invulnerabilidad_segundos = max(0.0, float(objeto))
+
                 if self.tipo_juego == 'TETRIS':
                     if verbo == 'SPAWN' and objeto == 'RANDOM_SHAPE': self.tetris_spawn_pieza()
                     if verbo == 'SPAWN' and objeto == 'POWER_UP': self.power_up()

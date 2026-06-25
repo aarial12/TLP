@@ -109,6 +109,10 @@ class Parser:
         acciones = []
         while self.posicion < len(self.tokens) and self.tokens[self.posicion] != 'END':
             verbo = self.consumir()
+
+            if verbo == 'DURATION':
+                acciones.append({'accion': verbo, 'objeto': int(self.consumir()), 'params': []})
+                continue
             
             # Si el comando es de una sola palabra, lo anadimos y continuamos
             if verbo == 'GAME_OVER':
