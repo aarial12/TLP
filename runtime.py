@@ -6,6 +6,8 @@ import json
 import time
 import random
 import bisect
+import random
+
 # Tkinter es la libreria GUI estandar de Python, compatible con 2.7
 import Tkinter as tk
 from Tkinter import *
@@ -13,6 +15,8 @@ import tkMessageBox # Necesario para el GAME OVER
 # Quitamos os y msvcrt ya que la GUI maneja el dibujo y el input
 import os
 # import msvcrt 
+
+import tanks
 
 class Juego:
     def __init__(self, datos_juego):
@@ -57,14 +61,18 @@ class Juego:
         self.root.bind('<Key>', self.manejar_input_gui)
 
         if self.tipo_juego == 'TANKS':
-            self.player_position = [self.alto/2, self.alto/2, 'UP']
-            self.tank_body = self.datos_juego['shapes']['TANK'][1][0]
+            self.player = tanks.Tank(self.alto/2, self.alto/2, 0)
+            self.tank_body = self.datos_juego['shapes']['TANK'][1]
+            self.map = self.datos_juego['shapes']['MAP'][1]
+            self.level = 0
+            self.enemys = []
             self.velocidad_gravedad = 0.4
             self.color_pieza = '#3B6294'
             self.bullets = Queue()
             self.bullets_q = 0
             self.velocidad_gravedad = 0.01
-
+            self.tick = 0
+            
 
         if self.tipo_juego == 'TETRIS':
             self.pieza_actual = None
@@ -135,7 +143,7 @@ class Juego:
                 for dir_name, archivo in trail_files.items():
                     img_path = os.path.join(base_dir, 'assets', archivo)
                     self.img_nyancat_trail[dir_name] = tk.PhotoImage(file=img_path)
-                    
+
         self.timer_gravedad = 0
         self.ejecutar_evento('ON_START')
         self.timer_id = None # Para controlar el loop de Tkinter
@@ -159,8 +167,6 @@ class Juego:
         if self.timer_gravedad >= self.velocidad_gravedad:
             self.timer_gravedad = 0
             self.ejecutar_evento('ON_TICK')
-        
-        
 
         # Programa el siguiente ciclo de juego
         self.timer_id = self.root.after(50, self.game_loop)
@@ -224,7 +230,7 @@ class Juego:
         COLOR_SNAKE_CUERPO = '#33CC33' # Verde normal
         COLOR_FOOD = '#FF0000'      # Rojo
         COLOR_VENENO = '#FF0199'
-        COLOR_NUBE = '#3B6294'
+        COLOR_NUBE = "#809FC9"
 
         # 1. Dibujar la cuadricula estatica (grid base)
         for y in range(self.alto):
@@ -233,12 +239,8 @@ class Juego:
                     self.dibujar_celda(x, y, COLOR_GRID_FIJA)
 
         if self.tipo_juego == 'TANKS':
-
-            for y_offset, fila in enumerate(self.tank_body):
-                for x_offset, celda in enumerate(fila):
-                    if celda == 1:
-                        self.dibujar_celda(self.player_position[0] + x_offset, self.player_position[1] + y_offset, COLOR_PIEZA)
-                        
+            self.draw_tanks()
+            self.draw_map()
 
 
         # 2. Dibujar la pieza actual de Tetris
@@ -276,8 +278,6 @@ class Juego:
                     self.canvas.create_image(x * ts, y * ts, image=self.img_cloud, anchor='nw')
                 else:
                     self.dibujar_celda(x, y, COLOR_NUBE)
-
-
 
             for i, segmento in enumerate(self.serpiente_cuerpo):
                 x, y = segmento
@@ -405,6 +405,19 @@ class Juego:
         # Fallback: triángulo orientado
         self.dibujar_triangulo(x, y, '#228822', direccion)
 
+    def ran():
+        last_number = 2
+
+        weights = [1, 1, 1, 1]
+        weights[last_number] = 4  # Make the previous number 4x more likely
+
+        num = random.choices(
+            population=[0, 1, 2, 3],
+            weights=weights,
+            k=1
+            )[0]
+        print(num)
+
     def ejecutar_evento(self, nombre_evento):
         if nombre_evento in self.datos_juego['events']:
             for accion in self.datos_juego['events'][nombre_evento]:
@@ -423,17 +436,23 @@ class Juego:
                     if verbo == 'ROTATE': self.tetris_rotar_pieza()
 
                 if self.tipo_juego == 'SNAKE':
-                    
                     if verbo == 'SPAWN' and objeto == 'PLAYER': self.snake_spawn_jugador(accion)
                     if verbo == 'SPAWN' and objeto == 'FOOD': self.snake_spawn_comida()
                     if verbo == 'MOVE' and objeto == 'PLAYER': self.snake_mover_jugador()
                     if verbo == 'GROW': self.snake_crecer()
 
                 if self.tipo_juego == 'TANKS':
-                    self.spawn_player()
-                    if verbo == 'MOVE': self.move_tank(accion['params'][0])
-                    if verbo == 'SHOT': self.shoot()
-                    if verbo == 'UPDATE': self.update_bullets()
+                    if verbo == 'SPAWN': self.spawn()
+                    if verbo == 'MOVE': self.move_tank(accion['params'][0], self.player)
+                    if verbo == 'SHOT': self.shoot(self.player)
+                    if verbo == 'UPDATE': 
+                        self.update_bullets()
+                        self.tick += 1
+                        if not (self.tick % 5):
+                            direc = ['UP', 'LEFT', 'RIGHT', 'DOWN']
+                            for enemy in self.enemys:
+                                self.move_tank(direc[random.randint(0, 3)], enemy)
+                                self.shoot()
                     
     # METODOS DE LOGICA DE JUEGO (MANTENIDOS DEL ARCHIVO ORIGINAL)
     # ---------------------------------------------------------------------
@@ -449,8 +468,56 @@ class Juego:
             self.grid[self.power_up_y][self.power_up_x] = 1  # Place at that position
             self.power_up_piece = None  # Consume the power-up
 
-    def spawn_player(self):
-        shapes = self.datos_juego['shapes']
+    def spawn(self):
+        wall_h = self.alto_canvas/10
+        wall_w = self.ancho_canvas/10
+        for y_offset, fila in enumerate(self.map[self.level]):
+            for x_offset, celda in enumerate(fila):
+                if celda == 2:
+                    pos_x = x_offset*wall_w/self.taman_celda
+                    pos_y = y_offset*wall_h/self.taman_celda
+                    self.enemys.append(tanks.Tank(pos_x, pos_y, 0)) 
+
+    def enemy(self):
+        print()
+
+
+    def draw_tanks(self):
+        for y_offset, fila in enumerate(self.tank_body[self.player.direc]):
+            for x_offset, celda in enumerate(fila):
+                if celda == 1:
+                    self.dibujar_celda(self.player.x + x_offset, self.player.y+ y_offset, self.color_pieza)
+        
+        for enemy in self.enemys:
+    # Accedemos a la matriz de diseño usando la dirección del tanque actual
+            matriz_tanque = self.tank_body[enemy.direc]
+    
+            for y_offset, fila in enumerate(matriz_tanque):
+                for x_offset, celda in enumerate(fila):
+                    if celda == 1:
+                # Calculamos la posición exacta sumando los offsets
+                        pos_x = enemy.x + x_offset
+                        pos_y = enemy.y + y_offset
+                        self.dibujar_celda(pos_x, pos_y, self.color_pieza)
+
+
+    def draw_map(self):
+        wall_h = self.alto_canvas/10
+        wall_w = self.ancho_canvas/10
+
+        for y_offset, fila in enumerate(self.map[self.level]):
+            for x_offset, celda in enumerate(fila):
+                if celda == 1:
+                    self.canvas.create_rectangle(
+                x_offset * wall_w,
+                y_offset * wall_h,
+                (x_offset + 1) * wall_w,
+                (y_offset + 1) * wall_h,
+                fill="#CCD0D4",
+                outline="#000000"
+            )
+        
+
 
     def update_bullets(self):
         if (self.bullets_q == 0):
@@ -461,55 +528,61 @@ class Juego:
             if (bullet[0] > self.ancho or bullet[0] < 0 or bullet[1] > self.alto or bullet[1] < 0):
                 self.bullets_q -= 1 
                 continue
-            
-            print("bala en ",bullet[0],", ",bullet[1])
-            bullet[1] -= 1
-            
+
+            if bullet[2] == 0:
+                bullet[1] -= 1
+            elif bullet[2] == 1:
+                bullet[0] -= 1
+            elif bullet[2] == 2:
+                bullet[1] += 1
+            else:
+                bullet[0] +=1
+
             self.dibujar_circulo(bullet[0], bullet[1], '#FF0000')
             self.bullets.put(bullet)
     
-    def shoot(self):
-        self.bullets.put([self.player_position[0] , self.player_position[1]])
+    def shoot(self, tank):
+        self.bullets.put([tank.x , tank.y, tank.direc])
         self.bullets_q += 1
 
-    def move_tank(self, direction):
+    def move_tank(self, direction, tank):
         if self.collition(direction):
             return
         if direction == 'LEFT':
-            self.player_position[0] -= 1
-            self.rotate_tank(direction)
+            tank.x -= 1
+            self.rotate_tank(direction, tank)
         elif direction == 'UP':
-            self.player_position[1] -= 1
-            self.rotate_tank(direction)
+            tank.y -= 1
+            self.rotate_tank(direction, tank)
         elif direction == 'DOWN':
-            self.player_position[1] += 1
-            self.rotate_tank(direction)
+            tank.y += 1
+            self.rotate_tank(direction, tank)
         elif direction == 'RIGHT':
-            self.player_position[0] += 1
-            self.rotate_tank(direction)
+            tank.x += 1
+            self.rotate_tank(direction, tank)
 
-    def rotate_tank(self, direction):
+    def rotate_tank(self, direction, tank):
         if direction == 'LEFT':
-            self.tank_body = self.datos_juego['shapes']['TANK'][1][1]
+            tank.direc = 1
         elif direction == 'UP':
-            self.tank_body = self.datos_juego['shapes']['TANK'][1][0]
+            tank.direc = 0
         elif direction == 'DOWN':
-            self.tank_body = self.datos_juego['shapes']['TANK'][1][2]
+            tank.direc = 2
         elif direction == 'RIGHT':
-            self.tank_body = self.datos_juego['shapes']['TANK'][1][3]
+            tank.direc = 3
 
     def collition(self, direction):
         if direction == 'LEFT':
-            if self.player_position[0] < 1:
+            if self.player.x < 1:
                 return 1
         elif direction == 'UP':
-            if self.player_position[1] < 1:
+            if self.player.y < 1:
                 return 1
         elif direction == 'DOWN':
-            if self.player_position[1] > self.alto - 7:
+            if self.player.y > self.alto - 7:
                 return 1
         elif direction == 'RIGHT':
-            if self.player_position[0] > self.ancho-7:
+            if self.player.x > self.ancho-7:
                 return 1
         return 0
     
@@ -584,9 +657,7 @@ class Juego:
 
             for _ in range(lineas_limpias): self.ejecutar_evento('ON_LINE_CLEAR')
 
-
         self.crecimiento_pendiente += 1
-
 
     # METODOS DE SALIDA (ADAPTADOS A GUI)
     # -----------------------------------
@@ -610,4 +681,3 @@ if __name__ == "__main__":
         sys.exit(1)
     juego = Juego(datos_juego)
     juego.run()
-    
