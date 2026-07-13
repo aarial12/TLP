@@ -97,6 +97,11 @@
     "ON_EAT_POWERUP": [
       {
         "params": [], 
+        "accion": "DURATION", 
+        "objeto": 30
+      }, 
+      {
+        "params": [], 
         "accion": "INCREASE_SCORE", 
         "objeto": "50"
       }, 
