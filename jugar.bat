@@ -19,7 +19,7 @@ echo Compilando el juego: %1...
 echo ----------------------------------
 
 REM Ejecuta el compilador de Python.
-/home/astrocat/.pyenv/versions/2.7.18/bin .\compiler.py .\games\%1.brick
+C:\Python27\python.exe .\compiler.py .\games\%1.brick
 
 REM Verifica si el comando anterior (la compilacion) fallo.
 if errorlevel 1 (
@@ -37,7 +37,7 @@ REM Se elimina la pausa para iniciar la GUI inmediatamente
 
 REM --- FASE 2: EJECUCION ---
 REM Ejecuta el motor del juego (runtime.py modificado con GUI).
-/home/astrocat/.pyenv/versions/2.7.18/bin .\runtime.py .\games\%1.json
+C:\Python27\python.exe .\runtime.py .\games\%1.json
 
 REM Fin del script.
 echo.
