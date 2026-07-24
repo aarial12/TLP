@@ -480,14 +480,11 @@ Estrategia óptima del player:
 5. DESGLOSE DE APORTES POR INTEGRANTE
 =============================================================================
 
-Basado en el análisis del código y la estructura del proyecto TLP,
-el sistema de Tanks fue implementado como un módulo integrado en el
-marco de trabajo BrickScript. La distribución de aportes es la siguiente:
 
 5.1 ARQUITECTURA BASE Y SISTEMA DE ENTIDADES
 ──────────────────────────────────────────────
 
-Responsable: Equipo de diseño de arquitectura
+Responsable: Jose Miguel
 
 Contribuciones:
   • Diseño de clase Entity genérica (tanks.py, líneas 1-14)
@@ -505,7 +502,7 @@ Impacto: Cimiento estructural del sistema de objetos
 5.2 MOTOR DE JUEGO Y RENDERIZADO
 ──────────────────────────────────
 
-Responsable: Implementador del runtime.py
+Responsable: Nicolas Arias
 
 Contribuciones:
   • Integración de Tanks en runtime.py (líneas 64-91)
@@ -530,7 +527,7 @@ Impacto: Núcleo funcional del juego
 5.3 SISTEMA DE FÍSICA Y COLISIONES
 ────────────────────────────────────
 
-Responsable: Implementador de lógica de movimiento
+Responsable: Nicolas Arias
 
 Contribuciones:
   • move_tank() - Movimiento de tanques (líneas 822-828)
@@ -553,7 +550,7 @@ Impacto: Interactividad y realismo del juego
 5.4 SISTEMA DE COMBATE Y DAÑO
 ───────────────────────────────
 
-Responsable: Implementador de mecánicas de combate
+Responsable: Nicolas Arias
 
 Contribuciones:
   • shoot() - Sistema de disparo (líneas 776-788)
@@ -578,7 +575,7 @@ Impacto: Dinámicas de combate equilibradas
 5.5 SISTEMA DEL FINAL BOSS
 ────────────────────────────
 
-Responsable: Diseñador de jefe final
+Responsable: Jose Miguel
 
 Contribuciones:
   • spawn_boss() - Generación del boss (líneas 638-643)
@@ -613,7 +610,7 @@ Impacto: Encarnación del desafío final del juego
 5.6 SISTEMA DE OLEADAS Y DIFICULTAD
 ─────────────────────────────────────
 
-Responsable: Diseñador de progresión
+Responsable: Jose Miguel
 
 Contribuciones:
   • spawn() - Generación de enemigos (líneas 624-636)
@@ -636,7 +633,7 @@ Impacto: Experiencia de juego progresiva y motivante
 5.7 SISTEMA DE RECURSOS DEL JUGADOR
 ─────────────────────────────────────
 
-Responsable: Diseñador de mecánicas
+Responsable: Nicolas Arias
 
 Contribuciones:
   • Sistema de munición (líneas 86-89, 382-388)
@@ -661,7 +658,7 @@ Impacto: Equilibrio y tensión en el juego
 5.8 INTERFAZ VISUAL Y USUARIO
 ───────────────────────────────
 
-Responsable: Implementador de UI
+Responsable: Nicolas Arias
 
 Contribuciones:
   • Panel lateral de información (líneas 47-58)
