@@ -3,11 +3,6 @@
          Guía Práctica para Crear Nuevos Juegos
 =============================================================
 
-VERSIÓN: 2.0
-FECHA: Julio 2026
-PROYECTO: BrickScript (TLP)
-AUDIENCIA: Desarrolladores que quieren crear juegos rápidamente
-
 =============================================================
 FLUJO BÁSICO
 =============================================================
@@ -41,11 +36,11 @@ GAME_GRID (ANCHO, ALTO)
   Define tamaño del área de juego en celdas
   Ejemplo: GAME_GRID (10, 20)
 
-DIFICULTY [NIVEL]  (solo SNAKE)
+DIFICULTY [NIVEL] 
   Niveles: BABY, CLASSIC, ENTUSIASTA, CAT
   Ejemplo: DIFICULTY CLASSIC
 
-POWERUP_INVULNERABILITY [SEGUNDOS]  (solo SNAKE)
+POWERUP_INVULNERABILITY [SEGUNDOS]  
   Ejemplo: POWERUP_INVULNERABILITY 5
 
 =============================================================
@@ -77,150 +72,6 @@ MATRIZ: Array de 0s y 1s, donde 1 = celda ocupada, 0 = vacía
 CHANCE: Peso de probabilidad (por defecto 1)
   CHANCE 2: Aparece 2x más frecuente
   CHANCE 0: Nunca aparece
-
-=============================================================
-EJEMPLO 1: TETRIS SIMPLE
-=============================================================
-
-GAME_TYPE TETRIS
-GAME_GRID (10, 20)
-
-DEFINE SHAPE I_PIEZA: CHANCE 2
-STATE 1: [1,1,1,1] END
-STATE 2: [1][1][1][1] END
-END
-
-DEFINE SHAPE O_PIEZA:
-STATE 1: [1,1][1,1] END
-END
-
-DEFINE SHAPE T_PIEZA:
-STATE 1: [0,1,0][1,1,1][0,0,0] END
-STATE 2: [0,1,0][0,1,1][0,1,0] END
-STATE 3: [0,0,0][1,1,1][0,1,0] END
-STATE 4: [0,1,0][1,1,0][0,1,0] END
-END
-
-COLORS:
-  COLOR ROJO: [FF0000]
-  COLOR AZUL: [0000FF]
-  COLOR VERDE: [00FF00]
-END
-
-ON START:
-  SPAWN RANDOM_SHAPE
-END
-
-ON TICK:
-  MOVE CURRENT_PIEZA DOWN
-  SPAWN RANDOM_SHAPE
-END
-
-ON KEY_UP:
-  ROTATE CURRENT_PIEZA
-END
-
-ON KEY_DOWN:
-  MOVE CURRENT_PIEZA DOWN
-END
-
-ON LINE_CLEAR:
-  INCREASE_SCORE 100
-END
-
-ON SECRET:
-  INCREASE_SCORE 800
-END
-
-=============================================================
-EJEMPLO 2: SNAKE
-=============================================================
-
-GAME_TYPE SNAKE
-GAME_GRID (15, 15)
-DIFICULTY CLASSIC
-
-DEFINE SHAPE FOOD:
-STATE 1: [1] END
-END
-
-COLORS:
-  COLOR ROJO: [FF0000]
-  COLOR VERDE: [00FF00]
-  COLOR AZUL: [0000FF]
-END
-
-ON START:
-  SPAWN PLAYER AT (7, 7)
-  SPAWN FOOD AT RANDOM
-END
-
-ON TICK:
-  MOVE PLAYER FORWARD
-END
-
-ON KEY_UP:    SET_DIRECTION UP END
-ON KEY_DOWN:  SET_DIRECTION DOWN END
-ON KEY_LEFT:  SET_DIRECTION LEFT END
-ON KEY_RIGHT: SET_DIRECTION RIGHT END
-
-ON EAT_FOOD:
-  INCREASE_SCORE 10
-  GROW PLAYER 1
-  SPAWN FOOD AT RANDOM
-END
-
-ON COLLISION_WALL:  GAME_OVER END
-ON COLLISION_SELF:  GAME_OVER END
-
-=============================================================
-EJEMPLO 3: TANKS
-=============================================================
-
-GAME_TYPE TANKS
-GAME_GRID (80, 60)
-
-DEFINE SHAPE TANK:
-STATE 1: [0,1,0][1,1,1][0,1,0] END
-STATE 2: [0,1,0][1,1,1][0,1,0] END
-STATE 3: [0,1,0][1,1,1][0,1,0] END
-STATE 4: [0,1,0][1,1,1][0,1,0] END
-END
-
-DEFINE SHAPE MAP:
-STATE 1:
-  [1,1,1,1,1,1,1,1,1,1]
-  [1,0,0,0,0,0,0,0,0,1]
-  [1,0,0,1,1,0,0,0,0,1]
-  [1,0,0,1,1,0,0,0,0,1]
-  [1,0,0,0,0,0,0,0,0,1]
-  [1,0,0,0,2,2,0,0,0,1]
-  [1,0,0,0,2,2,0,0,0,1]
-  [1,0,0,0,0,0,0,0,0,1]
-  [1,0,0,0,0,0,0,0,0,1]
-  [1,1,1,1,1,1,1,1,1,1]
-END
-END
-
-COLORS:
-  COLOR GRIS: [808080]
-  COLOR VERDE: [00FF00]
-END
-
-ON START:
-  SPAWN
-END
-
-ON TICK:
-  UPDATE
-  SPAWN
-END
-
-ON KEY_UP:    MOVE UP END
-ON KEY_DOWN:  MOVE DOWN END
-ON KEY_LEFT:  MOVE LEFT END
-ON KEY_RIGHT: MOVE RIGHT END
-ON KEY_SPACE: SHOT END
 
 =============================================================
 ESTRUCTURAS .brick EXPLICADAS
@@ -270,23 +121,17 @@ EVENTOS (ON_*): Triggers que ejecutan acciones
 
 ACCIONES: Comandos ejecutados en eventos
 
-  TETRIS:
-    - SPAWN RANDOM_SHAPE           → Pieza aleatoria
+    - SPAWN RANDOM_SHAPE           
     - MOVE CURRENT_PIEZA [LEFT|RIGHT|DOWN]
     - ROTATE CURRENT_PIEZA
     - INCREASE_SCORE [N]
     - GAME_OVER
-
-  SNAKE:
     - SPAWN PLAYER AT (X, Y) / RANDOM
     - SPAWN FOOD AT RANDOM
     - SET_DIRECTION [UP|DOWN|LEFT|RIGHT]
     - MOVE PLAYER FORWARD
     - GROW PLAYER [N]
     - INCREASE_SCORE [N]
-    - GAME_OVER
-
-  TANKS:
     - MOVE [UP|DOWN|LEFT|RIGHT]
     - SHOT / SHOOT
     - UPDATE
@@ -338,40 +183,5 @@ REGLAS IMPORTANTES
 
 ✗ No espacios en nombres (usa_ guion bajo en lugar de espacio)
 ✗ No caracteres especiales en nombres de formas
-✗ No excedas 4 rotaciones por forma en Tetris/Tanks
-✗ No matrices muy grandes (máximo 8x8 recomendado)
-
-=============================================================
-SOLUCIÓN DE PROBLEMAS
-=============================================================
-
-"ERROR DE COMPILACIÓN"
-  → Revisa que todas las palabras clave estén correctas
-  → Verifica que cada bloque termine con END
-  → Asegúrate de que GAME_TYPE está en mayúsculas
-
-"El juego no responde a las teclas"
-  → Verifica que los eventos ON KEY_* estén escritos
-  → Revisa que las acciones MOVE o SET_DIRECTION sean válidas
-
-"Las piezas/formas no aparecen"
-  → Comprueba que hay SPAWN en ON START o ON TICK
-  → Verifica que DEFINE SHAPE está antes de los eventos
-
-"Juego lento o laggy"
-  → Reduce el tamaño de GAME_GRID
-  → Simplifica las matrices de formas
-  → Reduce el número de colores
-
-=============================================================
-EJEMPLOS DE ARCHIVOS .brick EN EL REPOSITORIO
-=============================================================
-
-En la carpeta /games/ encontrarás:
-  - tetris.brick        → Ejemplo Tetris completo
-  - snake.brick         → Ejemplo Snake completo
-  - tanks.brick         → Ejemplo Tanks completo
-
-¡Úsalos como referencia y modifícalos para crear tu propio juego!
 
 =============================================================
