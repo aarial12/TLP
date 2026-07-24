@@ -1,0 +1,1411 @@
+=============================================================
+          MANUAL DE USUARIO TÉCNICO - BrickScript
+        Cómo añadir nuevos juegos y usar etiquetas avanzadas
+=============================================================
+
+VERSIÓN: 1.0
+FECHA: Julio 2026
+PROYECTO: BrickScript (TLP)
+AUDIENCIA: Desarrolladores, game designers
+
+=============================================================
+TABLA DE CONTENIDOS
+=============================================================
+
+1. Introducción y Estructura Básica
+2. Anatomía de un Archivo .brick
+3. Configuración Inicial (GAME_TYPE, GAME_GRID, etc.)
+4. Definición Avanzada de Formas (DEFINE SHAPE)
+5. Sistema de Colores (COLORS)
+6. Sistema de Dificultad (DIFICULTY)
+7. Sistema de Eventos (ON_*)
+8. Acciones y Parámetros
+9. Casos de Uso: Crear un Nuevo Juego
+10. Referencia Rápida de Etiquetas
+11. Limitaciones y Consideraciones de Performance
+12. Troubleshooting
+
+=============================================================
+1. INTRODUCCIÓN Y ESTRUCTURA BÁSICA
+=============================================================
+
+BrickScript es un lenguaje de propósito específico (DSL) que permite
+crear juegos clásicos tipo "brick games" sin escribir Python. El flujo es:
+
+  .brick (código fuente)
+    ↓
+  COMPILER.PY (lexer + parser)
+    ↓
+  .JSON (configuración serializada)
+    ↓
+  RUNTIME.PY (motor de ejecución + Tkinter GUI)
+    ↓
+  ¡JUEGO!
+
+Un archivo .brick es un documento de texto plano con estas secciones:
+- Configuración global (tipo de juego, tamaño de grid)
+- Definición de formas (piezas, enemigos, mapas)
+- Sistema de colores
+- Eventos y lógica (qué hacer en cada momento)
+
+Ejemplo mínimo (tetris_minimo.brick):
+
+---CUT HERE---
+GAME_TYPE TETRIS
+GAME_GRID (10, 20)
+
+DEFINE SHAPE I_PIEZA:
+STATE 1: [1,1,1,1] END
+STATE 2: [1][1][1][1] END
+END
+
+ON START:
+  SPAWN RANDOM_SHAPE
+END
+
+ON TICK:
+  MOVE CURRENT_PIEZA DOWN
+  SPAWN RANDOM_SHAPE
+END
+
+ON LINE_CLEAR:
+  INCREASE_SCORE 100
+END
+---CUT HERE---
+
+Para compilar y probar:
+  python compiler.py tetris_minimo.brick
+  python runtime.py tetris_minimo.json
+
+=============================================================
+2. ANATOMÍA DE UN ARCHIVO .brick
+=============================================================
+
+Estructura General:
+┌─────────────────────────────────────────┐
+│ 1. CONFIGURACIÓN GLOBAL                 │
+│    - GAME_TYPE                          │
+│    - GAME_GRID                          │
+│    - DIFICULTY (opcional)               │
+│    - POWERUP_INVULNERABILITY (opcional) │
+├─────────────────────────────────────────┤
+│ 2. DEFINICIONES DE FORMAS               │
+│    - DEFINE SHAPE ... END               │
+│    (puede haber múltiples)              │
+├─────────────────────────────────────────┤
+│ 3. SISTEMA DE COLORES                   │
+│    - COLORS: COLOR ... END              │
+│    (opcional)                           │
+├─────────────────────────────────────────┤
+│ 4. EVENTOS Y LÓGICA                     │
+│    - ON START: ... END                  │
+│    - ON TICK: ... END                   │
+│    - ON KEY_*: ... END                  │
+│    (puede haber múltiples)              │
+└─────────────────────────────────────────┘
+
+Reglas Generales:
+- Las palabras clave son MAYÚSCULAS (GAME_TYPE, DEFINE, etc.)
+- Los comentarios comienzan con # y se ignoran
+- Los números pueden ser enteros o decimales
+- Las coordenadas son (X, Y) siendo X el ancho e Y el alto
+- Cada bloque termina con END (excepto configuración simple)
+- Se pueden omitir espacios y saltos de línea; el parser es flexible
+
+=============================================================
+3. CONFIGURACIÓN INICIAL
+=============================================================
+
+3.1 GAME_TYPE (OBLIGATORIO)
+─────────────────────────────
+
+Define el tipo de juego y activa la lógica específica del motor.
+
+Sintaxis:
+  GAME_TYPE [TIPO]
+
+Tipos soportados:
+  - TETRIS       : Juego de caída de piezas. Incluye rotación, gravedad,
+                   limpieza de líneas completas.
+  - SNAKE        : Juego de serpiente creciente. Incluye comida, veneno,
+                   nubes, power-ups con invulnerabilidad.
+  - TANKS        : Juego de tanques tipo battle. Incluye movimiento, disparo,
+                   oleadas de enemigos, boss, munición.
+
+Ejemplo:
+  GAME_TYPE TETRIS
+
+3.2 GAME_GRID (OBLIGATORIO)
+────────────────────────────
+
+Define el tamaño del área de juego en celdas (píxeles virtuales).
+
+Sintaxis:
+  GAME_GRID (ANCHO, ALTO)
+
+ANCHO:  número de celdas horizontales (típico: 10-40)
+ALTO:   número de celdas verticales (típico: 10-30)
+
+Notas:
+- En TANKS, se reduce automáticamente el tamaño de celda (5px en lugar de 25px)
+- Grid muy grande = lag; Grid muy pequeño = poco espacio de juego
+
+Ejemplos:
+  GAME_GRID (10, 20)    # Tetris clásico (10x20)
+  GAME_GRID (12, 20)    # Snake extendido
+  GAME_GRID (80, 60)    # Tanks de alta resolución
+
+3.3 DIFICULTY (OPCIONAL)
+────────────────────────
+
+Solo aplica a SNAKE. Define velocidad, obstáculos y comportamientos.
+
+Sintaxis:
+  DIFICULTY [NIVEL]
+
+Niveles en SNAKE:
+  - BABY         : Velocidad lenta (0.20), sin veneno, sin nubes.
+                   Ideal para principiantes.
+  - CLASSIC      : Velocidad normal (0.15), sin veneno.
+                   Juego tradicional de Snake.
+  - ENTUSIASTA   : Velocidad rápida (0.10), incluye veneno.
+                   Si come veneno: puntos → 0 (no game over).
+  - CAT          : Velocidad muy rápida (0.075), veneno, nubes, invulnerabilidad.
+                   Collisión propia: puntos → 0 en lugar de game over.
+
+Ejemplo:
+  GAME_TYPE SNAKE
+  GAME_GRID (10, 20)
+  DIFICULTY CAT
+
+3.4 POWERUP_INVULNERABILITY (OPCIONAL, solo SNAKE)
+───────────────────────────────────────────────────
+
+Duración en segundos de la invulnerabilidad activada por power-up.
+
+Sintaxis:
+  POWERUP_INVULNERABILITY [SEGUNDOS]
+  o
+  INVULNERABILITY [SEGUNDOS]    # Alias aceptado
+
+Ejemplo:
+  POWERUP_INVULNERABILITY 5     # 5 segundos de invulnerabilidad
+
+Por defecto: 3 segundos
+
+=============================================================
+4. DEFINICIÓN AVANZADA DE FORMAS (DEFINE SHAPE)
+=============================================================
+
+Las formas son los elementos gráficos: piezas de Tetris, cuerpo de serpiente,
+tanques, comida, obstáculos, etc.
+
+4.1 Sintaxis Básica
+───────────────────
+
+DEFINE SHAPE [NOMBRE]:
+  [CHANCE [VALOR]]            # Opcional: peso de probabilidad
+  STATE [N]:                  # Primera rotación/estado
+    [fila1_matriz]
+    [fila2_matriz]
+    ...
+  END
+  STATE [N]:                  # Segunda rotación/estado (opcional)
+    [fila1_matriz]
+    [fila2_matriz]
+    ...
+  END
+  ...
+END
+
+Parámetros:
+
+NOMBRE:   Identificador único (mayúsculas, sin espacios).
+          Ejemplos: I_PIEZA, O_PIEZA, FOOD, TANK, MAP, POISON, CLOUD
+
+CHANCE:   Peso de probabilidad (entero positivo). Por defecto: 1.
+          - CHANCE 2: Aparece el doble de veces que una forma con CHANCE 1.
+          - CHANCE 10: Aparece 10 veces más frecuente.
+          - Usado en SPAWN RANDOM_SHAPE (Tetris/Snake).
+
+STATE [N]: Número de estado (1, 2, 3, ...). Representa rotaciones o fases.
+           - Tetris: 4 rotaciones máximo (STATE 1, 2, 3, 4)
+           - Snake: Generalmente 1 estado (cabeza, cuerpo, trail tienen lógica separada)
+           - Tanks: 4 direcciones (STATE 1=arriba, 2=izq, 3=abajo, 4=derecha)
+
+Matriz:    Arreglo rectangular de 0s y 1s.
+           - 1: Celda ocupada
+           - 0: Celda vacía
+           - Formato: [val, val, val, ...]
+           - Ejemplo: [1, 0, 1]
+
+4.2 Ejemplos Prácticos
+──────────────────────
+
+Ejemplo 1: Pieza I de Tetris (con 2 rotaciones)
+
+DEFINE SHAPE I_PIEZA: CHANCE 2
+STATE 1:
+  [1,1,1,1]
+END
+STATE 2:
+  [1]
+  [1]
+  [1]
+  [1]
+END
+END
+
+Explicación:
+- CHANCE 2: Aparece 2x más que otras piezas.
+- STATE 1: Horizontal [1,1,1,1]
+- STATE 2: Vertical (4 filas de 1 elemento)
+
+Ejemplo 2: Pieza O de Tetris (sin rotación visible)
+
+DEFINE SHAPE O_PIEZA:
+STATE 1:
+  [1, 1]
+  [1, 1]
+END
+END
+
+Ejemplo 3: Comida de Snake
+
+DEFINE SHAPE FOOD:
+STATE 1:
+  [1]
+END
+END
+
+Ejemplo 4: Mapa de Tanks (se definen 10x10 puntos)
+
+DEFINE SHAPE MAP:
+STATE 1:
+  [1,1,1,1,1,1,1,1,1,1]
+  [1,0,0,0,0,0,0,0,0,1]
+  [1,0,0,1,1,0,0,0,0,1]
+  [1,0,0,1,1,0,0,0,0,1]
+  [1,0,0,0,0,0,0,0,0,1]
+  [1,0,0,0,2,2,0,0,0,1]   # 2 = punto de spawn
+  [1,0,0,0,2,2,0,0,0,1]
+  [1,0,0,0,0,0,0,0,0,1]
+  [1,0,0,0,0,0,0,0,0,1]
+  [1,1,1,1,1,1,1,1,1,1]
+END
+END
+
+Notas sobre MAP en Tanks:
+- Valores: 0 = vacío, 1 = pared, 2 = punto de spawn de enemigos
+- Se divide el grid en bloques (grid_size / 10)
+- Permite diseños de nivel complejos
+
+Ejemplo 5: Cuerpo de Tanque (múltiples direcciones)
+
+DEFINE SHAPE TANK:
+STATE 1:   # UP
+  [0,1,0]
+  [1,1,1]
+  [0,1,0]
+END
+STATE 2:   # LEFT
+  [0,1,0]
+  [1,1,1]
+  [0,1,0]
+END
+STATE 3:   # DOWN
+  [0,1,0]
+  [1,1,1]
+  [0,1,0]
+END
+STATE 4:   # RIGHT
+  [0,1,0]
+  [1,1,1]
+  [0,1,0]
+END
+END
+
+4.3 Limitaciones y Consejos
+────────────────────────────
+
+- Máximo 4 estados por forma (limitación del engine Tetris/Tanks).
+- Matrices grandes hacen lag; máximo ~8x8 por pieza recomendado.
+- Los nombres deben ser únicos en el juego.
+- En Tetris, la forma aparece al centro del grid.
+- En Tanks, el tamaño real de sprite depende de la dirección.
+
+=============================================================
+5. SISTEMA DE COLORES (COLORS)
+=============================================================
+
+Define los colores disponibles para renderizar formas. El motor elige
+aleatoriamente de esta paleta al spawnear piezas con SPAWN RANDOM_SHAPE.
+
+5.1 Sintaxis
+────────────
+
+COLORS:
+  COLOR [NOMBRE]: [VALOR_HEX]
+  COLOR [NOMBRE]: [VALOR_HEX]
+  ...
+END
+
+NOMBRE:     Identificador (opcional; se ignora, solo se usa el valor).
+VALOR_HEX:  Código hexadecimal RGB sin #. Ej: FF0000 (rojo).
+
+Ejemplo:
+
+COLORS:
+  COLOR ROJO: [FF0000]
+  COLOR AZUL: [0000FF]
+  COLOR VERDE: [00FF00]
+  COLOR AMARILLO: [FFFF00]
+  COLOR MAGENTA: [FF00FF]
+  COLOR CIAN: [00FFFF]
+END
+
+Notas:
+- El motor renderiza seleccionando aleatoriamente de COLORS
+  cuando ejecuta SPAWN RANDOM_SHAPE en Tetris/Snake.
+- Si no defines COLORS, por defecto usa #000FFF (cian).
+- Los valores se usan sin #; el parser agrega el # automáticamente.
+- Máximo 20-30 colores recomendados (más ralentiza renderizado).
+
+Ejemplo de uso completo (Tetris multicolor):
+
+GAME_TYPE TETRIS
+GAME_GRID (10, 20)
+
+COLORS:
+  COLOR RED: [FF0000]
+  COLOR BLUE: [0000FF]
+  COLOR GREEN: [00FF00]
+  COLOR YELLOW: [FFFF00]
+  COLOR PURPLE: [FF00FF]
+  COLOR ORANGE: [FFA500]
+END
+
+DEFINE SHAPE I_PIEZA:
+STATE 1: [1,1,1,1] END
+STATE 2: [1][1][1][1] END
+END
+
+ON START:
+  SPAWN RANDOM_SHAPE
+END
+
+ON TICK:
+  MOVE CURRENT_PIEZA DOWN
+  SPAWN RANDOM_SHAPE
+END
+
+=============================================================
+6. SISTEMA DE DIFICULTAD (DIFICULTY)
+=============================================================
+
+Ya cubierto en sección 3.4. Resumen:
+
+- BABY: Velocidad lenta, sin obstáculos (educativo).
+- CLASSIC: Velocidad normal (juego clásico).
+- ENTUSIASTA: Velocidad rápida, incluye veneno.
+- CAT: Velocidad muy rápida, máxima complejidad.
+
+En otros tipos de juego (TETRIS, TANKS), DIFICULTY se ignora.
+
+=============================================================
+7. SISTEMA DE EVENTOS (ON_*)
+=============================================================
+
+Los eventos son momentos del juego donde se ejecutan acciones.
+El motor detecta eventos (inicio, movimiento del jugador, colisión, etc.)
+y ejecuta las acciones asociadas.
+
+7.1 Eventos Generales
+──────────────────────
+
+ON START:
+  Se dispara UNA VEZ al inicializar el juego.
+  Uso: Spawnear jugador, comida inicial, piezas.
+  Válido en: TETRIS, SNAKE, TANKS
+
+ON TICK:
+  Se dispara PERIÓDICAMENTE según velocidad_gravedad.
+  Uso: Aplicar gravedad, spawnear enemigos, actualizar lógica.
+  Válido en: TETRIS, SNAKE, TANKS
+
+ON KEY_UP, ON KEY_DOWN, ON KEY_LEFT, ON KEY_RIGHT:
+  Se dispara cuando el jugador presiona las flechas.
+  Uso: Mover pieza, cambiar dirección.
+  Válido en: TETRIS, SNAKE, TANKS
+
+ON KEY_SPACE:
+  Se dispara cuando el jugador presiona barra espaciadora.
+  Uso: Disparar (Tanks), colocar power-up (Tetris).
+  Válido en: TANKS
+
+7.2 Eventos Específicos de TETRIS
+──────────────────────────────────
+
+ON LINE_CLEAR:
+  Se dispara cuando se completa una línea horizontal.
+  Parámetro: Número de líneas completadas (se pasa implícitamente).
+  Uso: Aumentar puntuación, efectos especiales.
+
+ON SECRET:
+  Se dispara cuando se completan 4 líneas simultáneamente (Tetris).
+  Uso: Bonificación de puntos, logros.
+
+Sintaxis completa:
+
+ON LINE_CLEAR:
+  INCREASE_SCORE 100
+END
+
+ON SECRET:
+  INCREASE_SCORE 800
+END
+
+7.3 Eventos Específicos de SNAKE
+─────────────────────────────────
+
+ON EAT_FOOD:
+  Se dispara cuando la serpiente come comida.
+  Uso: Aumentar puntos, generar nueva comida.
+
+ON EAT_POWERUP:
+  Se dispara cuando la serpiente come power-up (invulnerabilidad).
+  Uso: Aumentar puntos, activar invulnerabilidad.
+
+ON COLLISION_WALL:
+  Se dispara cuando la serpiente choca con la pared (vulnerable).
+  Uso: Game Over.
+
+ON COLLISION_SELF:
+  Se dispara cuando la serpiente se choca a sí misma (vulnerable).
+  Uso: Game Over.
+
+Ejemplo:
+
+ON EAT_FOOD:
+  INCREASE_SCORE 10
+  SPAWN FOOD AT RANDOM
+END
+
+ON COLLISION_WALL:
+  GAME_OVER
+END
+
+7.4 Eventos Específicos de TANKS
+─────────────────────────────────
+
+ON KEY_SPACE:
+  Se dispara al presionar barra espaciadora.
+  Uso: Disparar proyectil.
+
+ON TICK:
+  Usado para actualizar enemigos, balas, oleadas.
+
+Ejemplo:
+
+ON KEY_SPACE:
+  SHOT
+END
+
+ON TICK:
+  UPDATE
+  SPAWN
+END
+
+7.5 Sintaxis de Bloque de Evento
+─────────────────────────────────
+
+ON [TIPO]:
+  ACCIÓN 1
+  ACCIÓN 2
+  ...
+END
+
+Puede haber múltiples acciones en un evento. Se ejecutan secuencialmente.
+
+=============================================================
+8. ACCIONES Y PARÁMETROS
+=============================================================
+
+Las acciones son comandos que se ejecutan dentro de un evento.
+
+8.1 Acciones Generales
+───────────────────────
+
+INCREASE_SCORE [CANTIDAD]:
+  Incrementa la puntuación del jugador.
+  Parámetro: Número entero (positivo o negativo).
+  Uso: ON LINE_CLEAR, ON EAT_FOOD, etc.
+
+Ejemplo:
+  INCREASE_SCORE 100
+
+GAME_OVER:
+  Termina el juego inmediatamente.
+  Sin parámetros.
+
+Ejemplo:
+  ON COLLISION_WALL:
+    GAME_OVER
+  END
+
+DURATION [SEGUNDOS]:
+  Configura la duración de invulnerabilidad (SNAKE).
+  Parámetro: Número decimal.
+  Nota: Esta acción es inusual; normalmente se usa POWERUP_INVULNERABILITY.
+
+Ejemplo:
+  DURATION 5
+
+8.2 Acciones Específicas de TETRIS
+───────────────────────────────────
+
+SPAWN RANDOM_SHAPE:
+  Spawnea una pieza aleatoria en la parte superior del grid.
+  El color se elige aleatoriamente de COLORS.
+  Sin parámetros.
+
+Ejemplo:
+  ON START:
+    SPAWN RANDOM_SHAPE
+  END
+
+SPAWN POWER_UP:
+  Spawnea un power-up especial (amarillo brillante).
+  El jugador lo puede mover con flechas y colocarlo con SPACE.
+  Sin parámetros.
+
+Ejemplo:
+  ON SECRET:
+    SPAWN POWER_UP
+  END
+
+MOVE CURRENT_PIEZA [DIRECCIÓN]:
+  Mueve la pieza actual en una dirección.
+  Parámetro: LEFT, RIGHT, o DOWN.
+  Nota: UP no es válido (contraviene la gravedad).
+
+Ejemplo:
+  ON KEY_DOWN:
+    MOVE CURRENT_PIEZA DOWN
+  END
+
+ROTATE CURRENT_PIEZA:
+  Rota la pieza actual 90 grados (siguiente STATE).
+  Sin parámetros.
+
+Ejemplo:
+  ON KEY_UP:
+    ROTATE CURRENT_PIEZA
+  END
+
+8.3 Acciones Específicas de SNAKE
+──────────────────────────────────
+
+SPAWN PLAYER AT (X, Y):
+  Spawnea el jugador (cabeza de serpiente) en coordenadas específicas.
+  Parámetro: Tupla (X, Y).
+  Uso: ON START.
+
+Ejemplo:
+  ON START:
+    SPAWN PLAYER AT (5, 10)
+  END
+
+SPAWN PLAYER AT RANDOM:
+  Spawnea el jugador en posición aleatoria.
+
+Ejemplo:
+  SPAWN PLAYER AT RANDOM
+
+SPAWN FOOD AT RANDOM:
+  Spawnea comida en posición aleatoria (no dentro del cuerpo).
+  Sin parámetros.
+
+Ejemplo:
+  ON EAT_FOOD:
+    SPAWN FOOD AT RANDOM
+  END
+
+MOVE PLAYER FORWARD:
+  Mueve la serpiente un paso en su dirección actual.
+  Se ejecuta automáticamente en ON_TICK; raro usar explícitamente.
+  Sin parámetros.
+
+SET_DIRECTION [DIRECCIÓN]:
+  Cambia la dirección de la serpiente.
+  Parámetro: UP, DOWN, LEFT, o RIGHT.
+  Nota: Se ignora si va en dirección opuesta (evita auto-colisión).
+
+Ejemplo:
+  ON KEY_UP:
+    SET_DIRECTION UP
+  END
+
+GROW PLAYER [CANTIDAD]:
+  Hace crecer la serpiente N segmentos.
+  Parámetro: Número entero.
+
+Ejemplo:
+  ON EAT_FOOD:
+    GROW PLAYER 1
+  END
+
+8.4 Acciones Específicas de TANKS
+──────────────────────────────────
+
+MOVE [DIRECCIÓN]:
+  Mueve el tanque del jugador en una dirección.
+  Parámetro: UP, DOWN, LEFT, RIGHT.
+  Colisiona con paredes y obstáculos.
+
+Ejemplo:
+  ON KEY_UP:
+    MOVE UP
+  END
+
+SHOT (o SHOOT):
+  El tanque dispara un proyectil en su dirección actual.
+  Consume munición (si está implementada).
+
+Ejemplo:
+  ON KEY_SPACE:
+    SHOT
+  END
+
+UPDATE:
+  Actualiza enemigos, balas, colisiones.
+  Se usa en ON TICK.
+
+Ejemplo:
+  ON TICK:
+    UPDATE
+  END
+
+SPAWN:
+  Spawnea oleada de enemigos según dificultad de puntuación.
+
+Ejemplo:
+  ON TICK:
+    SPAWN
+  END
+
+8.5 Resumen de Acciones por Juego
+──────────────────────────────────
+
+TETRIS:
+  - SPAWN RANDOM_SHAPE
+  - SPAWN POWER_UP
+  - MOVE CURRENT_PIEZA [LEFT|RIGHT|DOWN]
+  - ROTATE CURRENT_PIEZA
+  - INCREASE_SCORE [N]
+  - GAME_OVER
+
+SNAKE:
+  - SPAWN PLAYER AT (X, Y) / RANDOM
+  - SPAWN FOOD AT RANDOM
+  - MOVE PLAYER FORWARD
+  - SET_DIRECTION [UP|DOWN|LEFT|RIGHT]
+  - GROW PLAYER [N]
+  - INCREASE_SCORE [N]
+  - GAME_OVER
+  - DURATION [segundos]
+
+TANKS:
+  - MOVE [UP|DOWN|LEFT|RIGHT]
+  - SHOT / SHOOT
+  - UPDATE
+  - SPAWN
+  - INCREASE_SCORE [N]
+  - GAME_OVER
+
+=============================================================
+9. CASOS DE USO: CREAR UN NUEVO JUEGO
+=============================================================
+
+9.1 Paso a Paso: "SERPIENTE SIMPLIFICADA"
+──────────────────────────────────────────
+
+Vamos a crear un archivo snake_simple.brick paso a paso.
+
+PASO 1: Declarar tipo y grid
+────────────────────────────
+
+GAME_TYPE SNAKE
+GAME_GRID (15, 15)
+DIFICULTY CLASSIC
+
+Explicación:
+- SNAKE: Activar lógica de serpiente.
+- GRID (15, 15): Área de juego pequeña.
+- DIFICULTY CLASSIC: Velocidad normal, sin veneno.
+
+PASO 2: Definir formas (solo necesitamos la comida)
+──────────────────────────────────────────────────
+
+DEFINE SHAPE FOOD:
+STATE 1:
+  [1]
+END
+END
+
+Explicación:
+- La serpiente se dibuja automáticamente como píxeles/círculos.
+- Solo definimos FOOD para que el compilador no dé error.
+
+PASO 3: Definir colores (opcional, pero mejor)
+──────────────────────────────────────────────
+
+COLORS:
+  COLOR RED: [FF0000]
+  COLOR GREEN: [00FF00]
+  COLOR BLUE: [0000FF]
+END
+
+PASO 4: Eventos - Inicio
+──────────────────────
+
+ON START:
+  SPAWN PLAYER AT (7, 7)
+  SPAWN FOOD AT RANDOM
+END
+
+Explicación:
+- Spawnea serpiente en el centro (7, 7).
+- Spawnea comida aleatoriamente.
+
+PASO 5: Eventos - Movimiento
+─────────────────────────────
+
+ON TICK:
+  MOVE PLAYER FORWARD
+  SPAWN FOOD AT RANDOM
+END
+
+Explicación:
+- MOVE PLAYER FORWARD: Mueve serpiente cada tick.
+- SPAWN FOOD AT RANDOM: Re-genera comida si desaparece.
+
+PASO 6: Eventos - Controles
+────────────────────────────
+
+ON KEY_UP:
+  SET_DIRECTION UP
+END
+
+ON KEY_DOWN:
+  SET_DIRECTION DOWN
+END
+
+ON KEY_LEFT:
+  SET_DIRECTION LEFT
+END
+
+ON KEY_RIGHT:
+  SET_DIRECTION RIGHT
+END
+
+Explicación:
+- Permite al jugador mover la serpiente con flechas.
+
+PASO 7: Eventos - Comida
+─────────────────────────
+
+ON EAT_FOOD:
+  INCREASE_SCORE 10
+  GROW PLAYER 1
+  SPAWN FOOD AT RANDOM
+END
+
+Explicación:
+- +10 puntos al comer.
+- +1 segmento a la serpiente.
+- Genera nueva comida.
+
+PASO 8: Eventos - Game Over
+─────────────────────────────
+
+ON COLLISION_WALL:
+  GAME_OVER
+END
+
+ON COLLISION_SELF:
+  GAME_OVER
+END
+
+Explicación:
+- Si choca con pared o consigo mismo, termina.
+
+ARCHIVO COMPLETO: snake_simple.brick
+─────────────────────────────────────
+
+GAME_TYPE SNAKE
+GAME_GRID (15, 15)
+DIFICULTY CLASSIC
+
+DEFINE SHAPE FOOD:
+STATE 1: [1] END
+END
+
+COLORS:
+  COLOR RED: [FF0000]
+  COLOR GREEN: [00FF00]
+  COLOR BLUE: [0000FF]
+END
+
+ON START:
+  SPAWN PLAYER AT (7, 7)
+  SPAWN FOOD AT RANDOM
+END
+
+ON TICK:
+  MOVE PLAYER FORWARD
+END
+
+ON KEY_UP:    SET_DIRECTION UP    END
+ON KEY_DOWN:  SET_DIRECTION DOWN  END
+ON KEY_LEFT:  SET_DIRECTION LEFT  END
+ON KEY_RIGHT: SET_DIRECTION RIGHT END
+
+ON EAT_FOOD:
+  INCREASE_SCORE 10
+  GROW PLAYER 1
+  SPAWN FOOD AT RANDOM
+END
+
+ON COLLISION_WALL:   GAME_OVER END
+ON COLLISION_SELF:   GAME_OVER END
+
+PRUEBA:
+───────
+
+cd C:\TLP
+python compiler.py snake_simple.brick
+python runtime.py snake_simple.json
+
+¡Deberías ver un juego de Snake!
+
+9.2 Caso de Uso Intermedio: "TETRIS CUSTOMIZADO"
+──────────────────────────────────────────────────
+
+Crear un archivo tetris_custom.brick con piezas multicolor y puntuación alterada.
+
+[Estructura similar a la anterior, pero con]:
+- DEFINE SHAPE para cada pieza (I, O, T, S, Z, J, L).
+- COLORS con paleta personalizada.
+- ON SECRET con bonificación especial (4 líneas).
+- ON KEY_UP para rotar, ON KEY_DOWN para caer rápido.
+
+Pseudocódigo:
+
+GAME_TYPE TETRIS
+GAME_GRID (10, 20)
+
+COLORS:
+  COLOR COLOR1: [FF0000]
+  COLOR COLOR2: [0000FF]
+  ... (múltiples colores)
+END
+
+DEFINE SHAPE I_PIEZA:    ...  END
+DEFINE SHAPE O_PIEZA:    ...  END
+DEFINE SHAPE T_PIEZA:    ...  END
+... (resto de piezas)
+
+ON START:
+  SPAWN RANDOM_SHAPE
+END
+
+ON TICK:
+  MOVE CURRENT_PIEZA DOWN
+  SPAWN RANDOM_SHAPE
+END
+
+ON KEY_UP:
+  ROTATE CURRENT_PIEZA
+END
+
+ON KEY_DOWN:
+  MOVE CURRENT_PIEZA DOWN
+END
+
+ON LINE_CLEAR:
+  INCREASE_SCORE 100
+END
+
+ON SECRET:
+  INCREASE_SCORE 800
+  SPAWN POWER_UP
+END
+
+9.3 Caso de Uso Avanzado: "TANKS MEJORADO"
+────────────────────────────────────────────
+
+Tanks es el más complejo. Requiere:
+- Definición de TANK (sprite del tanque, 4 direcciones).
+- Definición de MAP (10x10 con paredes y puntos de spawn).
+- Lógica en ON TICK para spawnear enemigos y actualizar.
+- ON KEY_SPACE para disparar.
+
+Ejemplo parcial:
+
+GAME_TYPE TANKS
+GAME_GRID (100, 80)
+
+DEFINE SHAPE TANK:
+STATE 1:   [0,1,0][1,1,1][0,1,0] END  # UP
+STATE 2:   [0,1,0][1,1,1][0,1,0] END  # LEFT
+STATE 3:   [0,1,0][1,1,1][0,1,0] END  # DOWN
+STATE 4:   [0,1,0][1,1,1][0,1,0] END  # RIGHT
+END
+
+DEFINE SHAPE MAP:
+STATE 1:
+  [1,1,1,1,1,1,1,1,1,1]
+  [1,0,0,0,0,0,0,0,0,1]
+  [1,0,1,1,0,0,1,1,0,1]
+  [1,0,1,1,0,0,1,1,0,1]
+  [1,0,0,0,0,0,0,0,0,1]
+  [1,0,0,2,2,0,0,0,0,1]
+  [1,0,0,2,2,0,0,0,0,1]
+  [1,0,0,0,0,0,0,0,0,1]
+  [1,0,0,0,0,0,0,0,0,1]
+  [1,1,1,1,1,1,1,1,1,1]
+END
+END
+
+ON START:
+  SPAWN
+END
+
+ON TICK:
+  UPDATE
+  SPAWN
+END
+
+ON KEY_UP:    MOVE UP    END
+ON KEY_DOWN:  MOVE DOWN  END
+ON KEY_LEFT:  MOVE LEFT  END
+ON KEY_RIGHT: MOVE RIGHT END
+ON KEY_SPACE: SHOT       END
+
+=============================================================
+10. REFERENCIA RÁPIDA DE ETIQUETAS
+=============================================================
+
+PALABRAS CLAVE (configuración):
+  GAME_TYPE [TETRIS|SNAKE|TANKS]
+  GAME_GRID (ANCHO, ALTO)
+  DIFICULTY [BABY|CLASSIC|ENTUSIASTA|CAT]
+  POWERUP_INVULNERABILITY [SEGUNDOS]
+  INVULNERABILITY [SEGUNDOS]
+
+PALABRAS CLAVE (definición):
+  DEFINE SHAPE [NOMBRE]:
+  CHANCE [VALOR]
+  STATE [N]:
+  COLORS: COLOR [NOMBRE]: [VALOR_HEX]
+
+PALABRAS CLAVE (eventos):
+  ON START / ON TICK
+  ON KEY_UP / ON KEY_DOWN / ON KEY_LEFT / ON KEY_RIGHT / ON KEY_SPACE
+  ON LINE_CLEAR / ON SECRET (Tetris)
+  ON EAT_FOOD / ON EAT_POWERUP / ON COLLISION_WALL / ON COLLISION_SELF (Snake)
+
+PALABRAS CLAVE (acciones):
+  INCREASE_SCORE [N]
+  GAME_OVER
+  DURATION [SEGUNDOS]
+  SPAWN [tipo] / MOVE [dirección] / ROTATE [pieza]
+  SET_DIRECTION [dirección] / GROW PLAYER [N]
+  SHOT / UPDATE
+
+DELIMITADORES:
+  ( )   Paréntesis para tuplas
+  [ ]   Paréntesis para matrices y valores hexadecimales
+  ,     Separador de elementos
+  :     Separador de sección
+  END   Cierre de bloque
+  #     Comentario (resto de línea se ignora)
+
+=============================================================
+11. LIMITACIONES Y CONSIDERACIONES DE PERFORMANCE
+=============================================================
+
+11.1 Limitaciones del Lenguaje
+───────────────────────────────
+
+1. NO HAY VARIABLES definidas por el usuario.
+   - Solo se puede usar el estado implícito (puntos, posición serpiente, etc.)
+   - No se pueden hacer cálculos condicionales complejos.
+
+2. NO HAY CONDICIONALES (IF/ELSE).
+   - Los eventos se disparan automáticamente; no hay filtrado.
+   - El motor decide qué evento ejecutar según el estado.
+
+3. NO HAY LOOPS explícitos.
+   - Solo ON_TICK da una repetición continua.
+
+4. NO HAY FUNCIONES definidas por usuario.
+   - Las acciones predefinidas son las únicas disponibles.
+
+5. NO SE PUEDEN MEZCLAR tipos de juego.
+   - Un archivo .brick es para UN juego: TETRIS, SNAKE o TANKS.
+
+Recomendación: Si necesitas lógica más compleja, considera escribir
+en Python puro usando las librerías de TLP como base.
+
+11.2 Limitaciones de Performance
+──────────────────────────────────
+
+1. Grid muy grande = lag.
+   - TANKS a 80x60 es el máximo recomendado.
+   - Tetris/Snake: máximo 40x30.
+
+2. Muchas formas definidas ralentiza spawn.
+   - Máximo 50-100 formas únicas (típicamente < 10).
+
+3. Muchos eventos simultáneos ralentiza.
+   - Máximo 20-50 eventos recomendado.
+
+4. Python 2.7 es lento comparado con Python 3.
+   - Este es un compromiso para compatibilidad retro.
+
+5. Tkinter tiene overhead gráfico.
+   - No esperes 60 FPS; típico es 20-30 FPS.
+
+11.3 Consejos de Optimización
+───────────────────────────────
+
+1. Usa grid más pequeño si lag es problema.
+2. Limita número de colores a 5-10.
+3. Evita matrices de forma > 8x8.
+4. En Tanks, mantén enemigos < 50 simultáneamente.
+5. Usa CHANCE estratégicamente para evitar spawns innecesarios.
+
+=============================================================
+12. TROUBLESHOOTING
+=============================================================
+
+12.1 Error: "Error de sintaxis: Se esperaba 'X' pero se encontró 'Y'"
+──────────────────────────────────────────────────────────────────────
+
+Causa: Typo en palabras clave o estructura incorrecta.
+
+Solución:
+1. Verifica que todas las palabras clave estén en MAYÚSCULAS.
+2. Revisa paréntesis y corchetes: ( ) [ ] { }
+3. Asegúrate de que cada bloque termine con END.
+4. Separa tuplas con comas: (X, Y) no (X Y).
+
+Ejemplo correcto:
+  ON TICK: MOVE CURRENT_PIEZA DOWN END
+
+Ejemplo incorrecto:
+  ON TICK: MOVE current_pieza down END  # Minúsculas
+  ON TICK: MOVE CURRENT_PIEZA DOWN      # Falta END
+
+12.2 Error: "No se pudo encontrar el archivo .brick"
+───────────────────────────────────────────────────────
+
+Causa: Ruta incorrecta o archivo no existe.
+
+Solución:
+1. Verifica que el archivo existe: dir *.brick (Windows) o ls *.brick (Unix).
+2. Asegúrate de estar en el directorio correcto.
+3. Usa ruta completa si es necesario:
+   python compiler.py C:\TLP\games\mi_juego.brick
+
+12.3 El juego compila pero no inicia
+────────────────────────────────────
+
+Causa: Error en tiempo de ejecución del JSON.
+
+Solución:
+1. Abre el archivo .json generado con un editor de texto.
+2. Verifica que el JSON sea válido (usa jsonlint.com si es necesario).
+3. Revisa que todas las formas estén correctamente definidas.
+4. Verifica que todos los eventos referenciados existan.
+
+Ejemplo de JSON válido:
+{
+  "tipo_juego": "SNAKE",
+  "config": {"grid_size": [10, 20]},
+  "shapes": {"FOOD": [1, [[[1]]]]},
+  "events": {"ON_START": [...]},
+  "colors": ["FF0000", "00FF00"]
+}
+
+12.4 Piezas no aparecen o pantalla está en blanco
+───────────────────────────────────────────────────
+
+Causa: Forma no definida o evento ON_START no spawnea.
+
+Solución:
+1. Verifica que ON_START contenga un SPAWN.
+2. Comprueba que la forma referenciada existe en DEFINE SHAPE.
+3. Asegúrate de que GAME_GRID tiene valores > 0.
+4. En Tetris, verifica que haya al menos 1 DEFINE SHAPE.
+
+Ejemplo correcto para Tetris:
+ON START:
+  SPAWN RANDOM_SHAPE
+END
+
+12.5 El juego responde lentamente a los controles
+───────────────────────────────────────────────────
+
+Causa: Grid demasiado grande o lógica compleja.
+
+Solución:
+1. Reduce tamaño de GAME_GRID.
+2. Simplifica eventos (menos acciones por evento).
+3. En Tanks, reduce número de enemigos spawneados.
+4. Verifica que no haya loops infinitos en ON_TICK.
+
+12.6 "ERROR DE COMPILACION" sin mensaje específico
+─────────────────────────────────────────────────────
+
+Causa: Error genérico; revisar stdout del compilador.
+
+Solución:
+1. Ejecuta el compilador y lee TODO el output:
+   python compiler.py mi_juego.brick 2>&1
+2. Busca la palabra clave problemática en la línea indicada.
+3. Revisa INSTALL.txt para dependencias de Python.
+
+12.7 No puedo mover el jugador en Tetris/Snake
+────────────────────────────────────────────────
+
+Causa: Eventos de tecla no definidos.
+
+Solución:
+1. Agrega ON KEY_* para cada dirección:
+   ON KEY_UP:    ... END
+   ON KEY_DOWN:  ... END
+   ON KEY_LEFT:  ... END
+   ON KEY_RIGHT: ... END
+
+2. Verifica que la acción sea válida para tu juego:
+   Tetris: MOVE CURRENT_PIEZA [LEFT|RIGHT|DOWN]
+   Snake:  SET_DIRECTION [UP|DOWN|LEFT|RIGHT]
+   Tanks:  MOVE [UP|DOWN|LEFT|RIGHT]
+
+12.8 Power-up de invulnerabilidad no funciona (Snake)
+─────────────────────────────────────────────────────
+
+Causa: Dificultad no es CAT/ENTUSIASTA.
+
+Solución:
+1. Asegúrate de usar:
+   DIFICULTY CAT
+   o
+   DIFICULTY ENTUSIASTA
+
+2. Verifica que ON EAT_POWERUP esté definido.
+
+3. Comprueba que puntuación alcance múltiplo de 200:
+   - Power-up aparece en puntuación 200, 400, 600, etc.
+   - Si comiste pero puntos no llegan a 200, no hay power-up.
+
+=============================================================
+APÉNDICE A: EJEMPLO COMPLETO - SNAKE INTERMEDIO
+=============================================================
+
+Nombre: snake_intermedio.brick
+Descripción: Snake con dos dificultades, multas de powerup, y efectos visuales.
+
+---CUT HERE---
+# Serpiente Intermedia - Version Mejorada
+GAME_TYPE SNAKE
+GAME_GRID (12, 18)
+DIFICULTY ENTUSIASTA
+POWERUP_INVULNERABILITY 4
+
+# Formas visibles
+DEFINE SHAPE FOOD:
+STATE 1: [1] END
+END
+
+DEFINE SHAPE POISON:
+STATE 1: [1] END
+END
+
+DEFINE SHAPE POWER_UP:
+STATE 1: [1] END
+END
+
+# Paleta de colores
+COLORS:
+  COLOR RED: [FF0000]
+  COLOR GREEN: [00FF00]
+  COLOR BLUE: [0000FF]
+  COLOR YELLOW: [FFFF00]
+  COLOR MAGENTA: [FF00FF]
+  COLOR CYAN: [00FFFF]
+END
+
+# Inicio del juego
+ON START:
+  SPAWN PLAYER AT (6, 9)
+  SPAWN FOOD AT RANDOM
+END
+
+# Lógica de movimiento
+ON TICK:
+  MOVE PLAYER FORWARD
+END
+
+# Controles
+ON KEY_UP:    SET_DIRECTION UP    END
+ON KEY_DOWN:  SET_DIRECTION DOWN  END
+ON KEY_LEFT:  SET_DIRECTION LEFT  END
+ON KEY_RIGHT: SET_DIRECTION RIGHT END
+
+# Eventos de comida
+ON EAT_FOOD:
+  INCREASE_SCORE 20
+  GROW PLAYER 1
+  SPAWN FOOD AT RANDOM
+END
+
+# Eventos de powerup
+ON EAT_POWERUP:
+  INCREASE_SCORE 100
+END
+
+# Eventos de colisión
+ON COLLISION_WALL:
+  GAME_OVER
+END
+
+ON COLLISION_SELF:
+  GAME_OVER
+END
+---CUT HERE---
+
+Prueba:
+  python compiler.py snake_intermedio.brick
+  python runtime.py snake_intermedio.json
+
+=============================================================
+APÉNDICE B: CHEAT SHEET DE SYNTAX
+=============================================================
+
+FORMATO RÁPIDO DE REFERENCIA:
+
+# Encabezado obligatorio
+GAME_TYPE [TETRIS|SNAKE|TANKS]
+GAME_GRID (ANCHO, ALTO)
+
+# Configuración opcional
+DIFICULTY [NIVEL]
+POWERUP_INVULNERABILITY [SEG]
+
+# Definición de forma
+DEFINE SHAPE [NOMBRE]:
+  [CHANCE [N]]
+  STATE [N]:
+    [fila1]
+    [fila2]
+  END
+END
+
+# Colores (opcional)
+COLORS:
+  COLOR [NOMBRE]: [HEXVALUE]
+END
+
+# Eventos
+ON [TIPO]:
+  ACCIÓN1
+  ACCIÓN2
+END
+
+# Acciones frecuentes
+INCREASE_SCORE [N]
+GAME_OVER
+SPAWN [tipo] AT [loc]
+MOVE [dir]
+ROTATE [pieza]
+SET_DIRECTION [dir]
+GROW PLAYER [N]
+
+=============================================================
+APÉNDICE C: CONVERSIÓN DE COLORES
+=============================================================
+
+Hexadecimal RGB a valores comunes:
+
+ROJO:      FF0000
+VERDE:     00FF00
+AZUL:      0000FF
+AMARILLO:  FFFF00
+MAGENTA:   FF00FF
+CIAN:      00FFFF
+NEGRO:     000000
+BLANCO:    FFFFFF
+GRIS:      808080
+NARANJA:   FFA500
+PÚRPURA:   800080
+ROSA:      FFC0CB
+MARRÓN:    A52A2A
+PLATEADO:  C0C0C0
+ORO:       FFD700
+
+Herramienta online: https://www.colorhexa.com
+
+=============================================================
+APÉNDICE D: COMPARACIÓN CON VERSIONES ANTERIORES
+=============================================================
+
+Cambios importantes desde versión 0.x:
+
+v1.0 (ACTUAL):
+  ✓ Soporte de TANKS mejorado con sprites multi-dirección
+  ✓ Sistema de invulnerabilidad con tiempo basado
+  ✓ DIFICULTY CAT con colisiones de nube
+  ✓ Power-up de reinvulnerabilidad cada 200 puntos
+  ✓ Renderizado con Tkinter completo
+
+v0.9:
+  - Solo soporte básico de TETRIS y SNAKE
+  - Sin invulnerabilidad configurable
+
+v0.8:
+  - Runtime sin GUI gráfica (solo console)
+
+=============================================================
+CONCLUSIÓN
+=============================================================
+
+¡Felicitaciones! Ya tienes todo lo que necesitas para crear juegos
+retro personalizados con BrickScript.
+
+Próximos pasos:
+1. Crea tu primer juego usando los ejemplos de la sección 9.
+2. Experimenta con colores, formas y dificultades.
+3. Si necesitas lógica más compleja, aprende Python y modifica
+   runtime.py o compiler.py directamente.
+
+Para soporte: Revisa README.txt e INSTALL.txt para resolución de problemas.
+
+¡Que disfrutes creando juegos!
+
+=============================================================
+CRÉDITOS
+=============================================================
+
+Manual técnico preparado por: Equipo de desarrollo TLP
+Versión: 1.0
+Fecha: Julio 2026
+Lenguaje: BrickScript v1.0
+Motor: Python 2.7 + Tkinter
+
+=============================================================
+FIN DEL MANUAL
+=============================================================
