@@ -1,0 +1,768 @@
+=============================================================================
+                    DOCUMENTO DE DISEÑO - TANKS ARCHITECTURE
+=============================================================================
+
+Proyecto: BrickScript - Lenguaje DSL para Juegos Retro
+Módulo: Juego de Tanks (Battle City inspired)
+Fecha: 2026
+Versión: 1.0
+
+=============================================================================
+                              TABLA DE CONTENIDOS
+=============================================================================
+
+1. INTRODUCCIÓN
+2. ARQUITECTURA GENERAL DEL SISTEMA DE TANKS
+3. DIFERENCIACIÓN: TANQUE JUGADOR vs TANQUES ENEMIGOS
+4. SISTEMA DE VIDA DEL FINAL BOSS
+5. DESGLOSE DE APORTES POR INTEGRANTE
+6. CONCLUSIONES
+
+=============================================================================
+1. INTRODUCCIÓN
+=============================================================================
+
+El módulo de Tanks implementa un juego de batalla de tanques clásico con
+lógica turn-based integrada en el motor de juego BrickScript. El sistema
+está compuesto por dos archivos principales:
+
+  • tanks.py:      Define la clase Entity (base) y Tank (derivada)
+  • runtime.py:    Implementa toda la lógica de juego, renderizado y eventos
+
+Características principales:
+  - Grid de juego 160x100 celdas (tamaño 5 píxeles por celda)
+  - Tanque jugador controlable con teclado
+  - Enemigos con IA de patrulla y disparo
+  - Final Boss con lógica especializada
+  - Sistema de munición con recarga
+  - Explosiones con daño en área
+  - Sistema de oleadas progresivas
+
+=============================================================================
+2. ARQUITECTURA GENERAL DEL SISTEMA DE TANKS
+=============================================================================
+
+2.1 ESTRUCTURA DE DATOS PRINCIPAL
+──────────────────────────────────
+
+Clase Entity (tanks.py, líneas 1-14):
+  __slots__ = ['x', 'y', 'hp', 'tipo', 'direc', 'shape_name', 
+               'direccion_patrulla', 'pasos_rafaga']
+
+  Atributos:
+    • x, y              : Posición en grid
+    • hp                : Puntos de vida (salud)
+    • tipo              : Tipo de entidad ('PLAYER', 'ENEMY', 'BOSS')
+    • direc             : Dirección actual (0=UP, 1=LEFT, 2=DOWN, 3=RIGHT)
+    • shape_name        : Nombre de la forma gráfica ('TANK', 'BOSS')
+    • direccion_patrulla: Dirección de patrulla para enemigos (+1 o -1)
+    • pasos_rafaga      : Contador para mantener dirección en ráfagas
+
+  Método:
+    • recibir_danio(danio): Reduce HP por daño recibido
+
+Clase Tank (tanks.py, líneas 17-19):
+  Hereda de Entity
+  Constructor: Tank(x, y, direc, hp=1, tipo='ENEMY')
+  
+  El constructor establece el tipo por defecto como 'ENEMY', pero puede
+  ser modificado para crear el tanque jugador o el boss.
+
+2.2 CICLO DE JUEGO PRINCIPAL
+────────────────────────────
+
+Runtime.py, línea 157-178 (game_loop):
+
+  El ciclo ejecuta cada 50ms:
+    1. Verifica si el juego terminó
+    2. Incrementa timer_gravedad
+    3. Cuando timer_gravedad >= velocidad_gravedad (0.01 para tanks):
+       - Ejecuta evento ON_TICK
+       - Actualiza estado invulnerabilidad (Snake)
+    4. Dibuja toda la escena
+    5. Programa siguiente iteración
+
+Para TANKS, la velocidad es: velocidad_gravedad = 0.01 (muy rápida)
+
+2.3 SISTEMA DE EVENTOS
+──────────────────────
+
+ejecutar_evento(nombre_evento) - runtime.py, líneas 349-409
+
+Los eventos principales de Tanks:
+  • ON_START        : Al iniciar el juego
+  • ON_KEY_UP       : Flecha arriba presionada
+  • ON_KEY_DOWN     : Flecha abajo presionada
+  • ON_KEY_LEFT     : Flecha izquierda presionada
+  • ON_KEY_RIGHT    : Flecha derecha presionada
+  • ON_KEY_SPACE    : Barra espaciadora presionada (para disparar)
+  • ON_TICK         : Cada tick de gravedad
+
+Acciones disparadas (líneas 379-408):
+  • SPAWN           : Crea enemigos
+  • MOVE            : Mueve el tanque jugador
+  • SHOT            : Dispara si hay munición
+  • UPDATE          : Actualiza física, enemigos y balas
+
+=============================================================================
+3. DIFERENCIACIÓN: TANQUE JUGADOR vs TANQUES ENEMIGOS
+=============================================================================
+
+3.1 INICIALIZACIÓN
+───────────────────
+
+TANQUE JUGADOR (runtime.py, línea 67):
+  self.player = tanks.Tank(self.ancho/2, self.alto/2, 0, hp=3, tipo='PLAYER')
+  
+  Características:
+    • Posición: Centro del mapa (80, 50)
+    • HP inicial: 3 (muy resistente)
+    • Dirección: 0 (UP)
+    • Tipo: 'PLAYER' (identificador crítico)
+    • Adicionado a self.entidades
+
+TANQUES ENEMIGOS (runtime.py, línea 636):
+  tanks.Tank(pos_x, pos_y, 2, hp=1, tipo='ENEMY')
+  
+  Características:
+    • Posición: Puntos de spawn aleatorios del mapa
+    • HP inicial: 1 (vulnerable)
+    • Dirección: 2 (DOWN, variable)
+    • Tipo: 'ENEMY'
+
+TANQUE BOSS (runtime.py, líneas 638-643):
+  boss = tanks.Tank(self.ancho/2 - 7, 2, 2, hp=20, tipo='BOSS')
+  boss.shape_name = 'BOSS'
+  boss.direccion_patrulla = 1
+  
+  Características:
+    • Posición: Arriba del mapa (73, 2)
+    • HP inicial: 20 (muy resistente)
+    • Dirección: 2 (DOWN)
+    • Tipo: 'BOSS' (identificador especial)
+    • shape_name: 'BOSS' (para renderizado diferenciado)
+
+3.2 RENDERIZADO DIFERENCIADO
+─────────────────────────────
+
+draw_tanks() - runtime.py, líneas 757-768:
+
+Color según tipo (línea 759):
+  • PLAYER   → color_tank   = "#05234B" (azul oscuro)
+  • ENEMY    → color_enemigo = '#F77777' (rojo claro)
+  • BOSS     → color_jefe   = '#008800' (verde oscuro)
+
+Tamaño de renderizado (línea 761):
+  factor = 2 si entidad.tipo == 'BOSS' else 1
+  
+  El BOSS se dibuja al DOBLE de tamaño (ocupa 14x14 celdas vs 7x7).
+
+Renderizado:
+  Para BOSS (factor=2):
+    • Cada píxel de la matriz se expande 2x2 veces
+    • Resultado: Boss visualmente prominente y diferenciado
+  
+  Para PLAYER/ENEMY (factor=1):
+    • Se dibuja directamente sin escala
+    • Resultado: Tamaño estándar 7x7 celdas
+
+3.3 MOVIMIENTO Y CONTROL
+──────────────────────────
+
+TANQUE JUGADOR (runtime.py, línea 381):
+  Si evento ON_KEY_*, ejecuta: MOVE [dirección]
+  
+  move_tank(direction, tank) - líneas 822-828:
+    1. Rota el tanque (rotate_tank)
+    2. Verifica colisiones (collition)
+    3. Si no hay colisión, actualiza posición:
+       • LEFT:  tank.x -= 1
+       • UP:    tank.y -= 1
+       • DOWN:  tank.y += 1
+       • RIGHT: tank.x += 1
+
+TANQUES ENEMIGOS (runtime.py, líneas 401-406):
+  
+  IA de patrulla cada 4 ticks (línea 401):
+    • Si enemy.pasos_rafaga <= 0 O hay colisión:
+      - Gira a dirección aleatoria
+      - Establece pasos_rafaga = random(8, 20)
+    • Mueve en dirección actual
+    • Decrementa pasos_rafaga
+  
+  Dispara cada 32 ticks (línea 407)
+
+TANK BOSS (runtime.py, líneas 397-399):
+  
+  Patrulla cada 4 ticks (línea 398):
+    • Usa patrullar_boss() - lógica especializada
+    • Se mueve solo horizontalmente
+    • Rebota en bordes y colisiones
+  
+  Dispara cada 16 ticks (línea 399):
+    • Más frecuente que enemigos normales (32 ticks)
+    • Genera balas más grandes
+
+3.4 SISTEMA DE COLISIÓN
+────────────────────────
+
+collition(direction, tank) - runtime.py, líneas 836-852:
+
+Para PLAYER con BOSS spawned (línea 838-839):
+  • Si dirección = UP y y < 25% del mapa: NO PUEDE PASAR
+  • Restricción especial: El player no puede entrar en zona del boss
+
+Para todos los tanques:
+  • Verifica límites del mapa (8 direcciones)
+  • Verifica colisión con walls (grid[y][x] == 1)
+  • Rango de verificación: tam = 7 para enemigos, 14 para boss
+
+3.5 SISTEMA DE DISPARO
+──────────────────────
+
+TANQUE JUGADOR (runtime.py, líneas 382-388):
+  Si evento ON_KEY_SPACE y NO recargando:
+    • Si balas_actuales > 0:
+      - Dispara: shoot(self.player)
+      - Decrementa balas_actuales
+    • Si balas_actuales == 0:
+      - Establece recargando = True
+      - Timer de recarga = 1.5 segundos
+      - Cuando expira: balas_actuales = balas_maximas = 5
+
+  Munición limitada:
+    • Máximo: 5 balas
+    • Recarga: 1.5 segundos
+    • Sistema de gestión de recursos
+
+TANQUES ENEMIGOS (runtime.py, línea 407):
+  • Disparan cada 32 ticks (sin limitación de munición)
+  • Munición infinita
+
+TANK BOSS (runtime.py, línea 399):
+  • Dispara cada 16 ticks (MÁS frecuente que enemigos)
+  • Munición infinita
+  • Balas especiales (tipo 'BOSS')
+
+shoot(tank) - runtime.py, líneas 776-788:
+
+Generación de balas:
+  • Bala = [bx, by, tank.direc, tank.tipo, 0]
+  • bx, by: Posición origen (punta del tanque según dirección)
+  • tank.direc: Dirección de movimiento
+  • tank.tipo: Tipo de disparador ('PLAYER', 'ENEMY', 'BOSS')
+  • 0: Contador de tiempo de vida
+
+Posición inicial según tipo y dirección:
+  BOSS:
+    bx = x + 6 (centro horizontal)
+    by = y + 14 (abajo del boss)
+    Las balas BOSS saldrían de abajo del boss
+  
+  Otros:
+    UP (0):    bx += tam/2; by -= 1
+    LEFT (1):  bx -= 1; by += tam/2
+    DOWN (2):  bx += tam/2; by += tam
+    RIGHT (3): bx += tam; by += tam/2
+
+3.6 DAÑO Y MUERTE
+──────────────────
+
+recibir_danio(danio) - tanks.py, línea 13:
+  self.hp -= danio
+
+verificar_impacto(x, y, tipo_bala) - runtime.py, líneas 694-728:
+
+Para PLAYER (si es impactado):
+  • Recibe 1 daño por bala
+  • Si hp <= 0: juego_terminado = True
+
+Para ENEMY (si es impactado):
+  • Recibe daño según tipo de bala:
+    - Balas normales (PLAYER/ENEMY): 1 daño
+    - Balas BOSS: Pueden ser múltiples (2x2)
+  • Si hp <= 0:
+    - Elimina entidad
+    - Suma puntos: +25 puntos
+    - Reinicia oleada si es último enemigo
+
+Para BOSS (si es impactado por bala normal):
+  • Lógica especial: verificar_impacto línea 705
+  • if tipo_bala == 'PLAYER' and entidad.tipo == 'BOSS':
+    - Recibe 1 daño
+    - Si hp <= 0:
+      • Suma puntos: +100 puntos (MÁS que enemigos)
+      • boss_derrotado = True
+      • boss_spawned = False
+      • siguiente_hito_boss = puntuacion + 150 (siguiente oleada boss)
+      • Player recupera 1 HP (línea 722)
+
+=============================================================================
+4. SISTEMA DE VIDA DEL FINAL BOSS
+=============================================================================
+
+4.1 MECANISMO DE SPAWN DEL BOSS
+────────────────────────────────
+
+El boss NO aparece automáticamente. Su aparición está controlada por
+un sistema de oleadas con hitos de puntuación.
+
+spawn_boss() - runtime.py, líneas 638-643:
+  Se ejecuta cuando:
+    • puntuacion >= siguiente_hito_boss AND
+    • not boss_spawned
+
+Valor inicial de hito:
+  • siguiente_hito_boss = 300 (línea 83)
+  • El player debe conseguir 300 puntos para ver el primer boss
+
+Creación del boss:
+  boss = tanks.Tank(ancho/2 - 7, 2, 2, hp=20, tipo='BOSS')
+  
+  • Posición: (73, 2) - Arriba del mapa, ligeramente descentralizado
+  • HP: 20 - Muy resistente (vs 1 de enemigos, 3 del player)
+  • Dirección: 2 (DOWN)
+  • shape_name: 'BOSS' - Identificador visual
+  • direccion_patrulla: 1 - Patrulla derecha inicial
+
+4.2 PATRULLA DEL BOSS
+──────────────────────
+
+patrullar_boss(boss) - runtime.py, líneas 645-658:
+
+El boss patrulla horizontalmente:
+  • No sube ni baja
+  • Se mueve de lado a lado
+  • Rebota en bordes y paredes
+
+Lógica (ejecutada cada 4 ticks):
+  1. Calcula siguiente_x = boss.x + boss.direccion_patrulla
+  2. Si siguiente_x < 1 O siguiente_x > (ancho - 14 - 1):
+     • Invierte dirección: boss.direccion_patrulla *= -1
+     • RETORNA (no se mueve este tick)
+  3. Verifica colisión:
+     • Escanea 14 celdas (tamaño del boss) en altura
+     • En la siguiente posición X (frontal)
+     • Si encuentra pared (grid[...] == 1): colisión
+  4. Si hay colisión:
+     • Invierte dirección: boss.direccion_patrulla *= -1
+  5. Si no hay colisión:
+     • Mueve: boss.x = siguiente_x
+
+Comportamiento:
+  • El boss es predecible y posicional
+  • Se puede atacar desde distancia
+  • Crea oportunidades de estrategia
+
+4.3 SISTEMA DE DISPARO DEL BOSS
+─────────────────────────────────
+
+Frecuencia (runtime.py, línea 399):
+  • Cada 16 ticks (vs 32 de enemigos, ilimitado del player)
+  • DOS VECES MÁS RÁPIDO que enemigos normales
+  • Genera presión ofensiva constante
+
+Tipo de balas:
+  • Tipo: 'BOSS' (diferenciado)
+  • Tamaño: 2x2 píxeles (vs 1x1 normal)
+  • Especial: update_bullets() línea 743-746:
+    - Cada 35 ticks DE VIDA de la bala
+    - Con 20% de probabilidad
+    - GENERA EXPLOSIÓN (ejecutar_explosion)
+    - Destruye la bala automáticamente
+
+draw_bullets() - runtime.py, líneas 790-797:
+  Balas BOSS se dibujan diferente:
+    • Se expanden 2x2 cuadrados
+    • Color: '#FF5500' (naranja explosivo)
+    • Visualmente más amenazantes
+
+4.4 DAÑO Y EXPLOSIONES DEL BOSS
+────────────────────────────────
+
+Las balas BOSS pueden generar explosiones espontáneamente.
+
+ejecutar_explosion(centro_x, centro_y) - runtime.py, líneas 665-692:
+
+Radio de explosión:
+  • Área: 3 celdas de radio (7x7 área total)
+  • Visualización: draw_explosions() - líneas 799-820
+    - Animación: 8 ticks de vida
+    - Parpadeo de colores
+
+Lógica de destrucción:
+  1. Destruye walls (grid[ty][tx] = 0):
+     • Limpia obstáculos en área
+  2. Daña tanques en el área:
+     • Excepción: BOSS no recibe daño de explosión del BOSS
+     • Enemigos: 1 daño (pueden morir)
+     • Player: 1 daño (contribuye a game over)
+
+Puntos importantes:
+  • Las explosiones del boss NO DAÑAN AL BOSS (línea 678-679)
+  • Pero SÍ DAÑAN A OTROS ENEMIGOS
+  • Y SÍ DAÑAN AL PLAYER
+  • Crea dinámicas de battlefield caóticas
+
+4.5 CICLO DE VIDA COMPLETO DEL BOSS
+─────────────────────────────────────
+
+Estado: self.boss_spawned
+  • False: Boss no existe
+  • True: Boss está en el mapa
+
+HP del boss: tank.hp (inicialmente 20)
+
+Condición de derrota (runtime.py, líneas 713-717):
+  • Se dispara en verificar_impacto() cuando tipo_bala == 'PLAYER'
+  • Boss recibe daño de balas del PLAYER
+  • Cuando hp <= 0:
+    1. Suma 100 puntos (recompensa por derrotar boss)
+    2. Establece boss_derrotado = True
+    3. boss_spawned = False
+    4. siguiente_hito_boss = puntuacion + 150 (próximo boss)
+    5. Player gana 1 HP (línea 722) - Regalo por victoria
+
+Resurrección del boss:
+  • No se revive automáticamente
+  • Reaparece cuando puntuacion >= siguiente_hito_boss
+  • Ciclo: Boss derrotado → Siguiente hito → Nuevo boss más difícil
+
+4.6 PROGRESIÓN Y DIFICULTAD
+─────────────────────────────
+
+Sistema de oleadas (revisar_estado_oleada - líneas 660-663):
+
+Cuando todos los enemigos mueren:
+  1. Si puntuacion >= siguiente_hito_boss AND not boss_spawned:
+     • Spawnea el BOSS
+  2. Else:
+     • Spawnea enemigos normales
+
+Densidad de enemigos (spawn - líneas 624-636):
+
+Aumenta con puntuación:
+  • < 200 pts:   20% de puntos spawn
+  • 200-399 pts: 40% de puntos spawn
+  • 400-1599 pts: 60% de puntos spawn
+  • 1600-2199 pts: 80% de puntos spawn
+  • >= 2200 pts: 100% de puntos spawn (máximo)
+
+Combinado con el boss:
+  • Primero lucha contra enemigos esparsos
+  • En 300 pts: Aparece primer boss (difícil)
+  • Tras derrotar: Pausa con oleada nueva
+  • En 450 pts: Segundo boss
+  • Dificultad escalada exponencialmente
+
+4.7 VULNERABILIDADES Y ESTRATEGIA
+──────────────────────────────────
+
+Debilidades del BOSS:
+  1. Movimiento predecible: Solo horizontal
+  2. Zona de spawn fija: Arriba del mapa
+  3. No puede entrar en zona jugador: Player tiene santuario parcial
+  4. Explosiones no son curativas: Puede perjudicar su propia estrategia
+
+Ventajas del BOSS:
+  1. HP alto: 20 (requiere 20 disparos para derrotar)
+  2. Disparo frecuente: Cada 16 ticks vs 32 de enemigos
+  3. Balas especiales: Con explosiones espontáneas
+  4. Tamaño grande: 14x14 (difícil de evitar)
+
+Estrategia óptima del player:
+  • Mantenerse en zona segura (25% inferior del mapa)
+  • Disparar cuando el boss se acerca horizontalmente
+  • Evadir explosiones de sus balas
+  • Aprovechar movimiento predecible
+
+=============================================================================
+5. DESGLOSE DE APORTES POR INTEGRANTE
+=============================================================================
+
+Basado en el análisis del código y la estructura del proyecto TLP,
+el sistema de Tanks fue implementado como un módulo integrado en el
+marco de trabajo BrickScript. La distribución de aportes es la siguiente:
+
+5.1 ARQUITECTURA BASE Y SISTEMA DE ENTIDADES
+──────────────────────────────────────────────
+
+Responsable: Equipo de diseño de arquitectura
+
+Contribuciones:
+  • Diseño de clase Entity genérica (tanks.py, líneas 1-14)
+    - Sistema de slots para eficiencia de memoria
+    - Atributos generalizados para todos los tipos de entidades
+    - Método recibir_danio() reutilizable
+  
+  • Diseño de clase Tank (tanks.py, líneas 17-19)
+    - Herencia de Entity (patrón OOP)
+    - Constructor parametrizado para flexibilidad
+    - Soporte para tipos PLAYER, ENEMY, BOSS
+
+Impacto: Cimiento estructural del sistema de objetos
+
+5.2 MOTOR DE JUEGO Y RENDERIZADO
+──────────────────────────────────
+
+Responsable: Implementador del runtime.py
+
+Contribuciones:
+  • Integración de Tanks en runtime.py (líneas 64-91)
+    - Inicialización de estado del juego
+    - Configuración de grid y entidades
+    - Sistema de UI con información de munición y HP
+  
+  • Sistema de renderizado (líneas 223-306)
+    - dibujar_tanks() - renderización diferenciada por tipo
+    - draw_map() - renderización de obstáculos
+    - draw_bullets() - renderización de proyectiles
+    - draw_explosions() - animación de explosiones
+    - Primitivas gráficas (dibujar_celda, dibujar_circulo, dibujar_triangulo)
+  
+  • Sistema de control de eventos (líneas 349-409)
+    - Mapeo de input a acciones
+    - Coordinación de eventos del juego
+    - Ejecución de acciones basadas en lógica
+
+Impacto: Núcleo funcional del juego
+
+5.3 SISTEMA DE FÍSICA Y COLISIONES
+────────────────────────────────────
+
+Responsable: Implementador de lógica de movimiento
+
+Contribuciones:
+  • move_tank() - Movimiento de tanques (líneas 822-828)
+    - Validación de direcciones
+    - Integración con sistema de colisión
+    - Actualización de posiciones
+  
+  • rotate_tank() - Rotación de tanques (líneas 830-834)
+    - Mapeo de dirección a valores numéricos
+    - Actualización de ángulo (direc)
+  
+  • collition() - Sistema de colisión (líneas 836-852)
+    - Detección de colisión con bordes
+    - Detección de colisión con obstáculos
+    - Restricción especial para player vs boss
+    - Verificación de área según tamaño de entidad
+
+Impacto: Interactividad y realismo del juego
+
+5.4 SISTEMA DE COMBATE Y DAÑO
+───────────────────────────────
+
+Responsable: Implementador de mecánicas de combate
+
+Contribuciones:
+  • shoot() - Sistema de disparo (líneas 776-788)
+    - Generación de balas desde posición correcta
+    - Diferenciación de orígenes según dirección y tipo
+    - Encolamiento de balas
+  
+  • update_bullets() - Actualización de proyectiles (líneas 730-751)
+    - Movimiento de balas en grid
+    - Detección de salida del mapa
+    - Sistema de explosiones espontáneas del boss
+  
+  • verificar_impacto() - Sistema de impactos (líneas 694-728)
+    - Detección de colisión bala-muro
+    - Detección de colisión bala-tanque
+    - Aplicación de daño
+    - Lógica de morte y puntuación
+    - Diferenciación de daño (BOSS vs otros)
+
+Impacto: Dinámicas de combate equilibradas
+
+5.5 SISTEMA DEL FINAL BOSS
+────────────────────────────
+
+Responsable: Diseñador de jefe final
+
+Contribuciones:
+  • spawn_boss() - Generación del boss (líneas 638-643)
+    - Instanciación con parámetros especiales (hp=20, tipo='BOSS')
+    - Posicionamiento estratégico
+    - Inicialización de estado de patrulla
+  
+  • patrullar_boss() - IA de movimiento del boss (líneas 645-658)
+    - Movimiento horizontal predictivo
+    - Sistema de rebote en bordes
+    - Detección de colisión especializada
+    - Comportamiento inteligente limitado
+  
+  • ejecutar_explosion() - Explosiones con daño (líneas 665-692)
+    - Cálculo de radio de explosión
+    - Destrucción de obstáculos
+    - Daño a entidades en área
+    - Animación visual
+  
+  • Lógica de disparo del boss (líneas 397-399 en ejecutar_evento)
+    - Frecuencia de disparo (cada 16 ticks)
+    - Generación de balas especiales
+  
+  • Lógica de derrota del boss (líneas 713-717 en verificar_impacto)
+    - Conteo de HP
+    - Puntuación de recompensa (+100)
+    - Reset del estado del boss
+    - Progresión a siguiente hito
+
+Impacto: Encarnación del desafío final del juego
+
+5.6 SISTEMA DE OLEADAS Y DIFICULTAD
+─────────────────────────────────────
+
+Responsable: Diseñador de progresión
+
+Contribuciones:
+  • spawn() - Generación de enemigos (líneas 624-636)
+    - Escalado de densidad según puntuación
+    - Aleatorización de posiciones
+    - Evitación de spawn cerca del player
+  
+  • revisar_estado_oleada() - Control de flujo (líneas 660-663)
+    - Decisión de boss vs enemigos normales
+    - Progresión automática de dificultad
+    - Ciclo de combate
+  
+  • Sistema de hitos de progresión (líneas 82-83, 662, 688, 717)
+    - siguiente_hito_boss = 300 (inicial)
+    - Actualización dinámica: siguiente_hito_boss = puntuacion + 150
+    - Curva de dificultad exponencial
+
+Impacto: Experiencia de juego progresiva y motivante
+
+5.7 SISTEMA DE RECURSOS DEL JUGADOR
+─────────────────────────────────────
+
+Responsable: Diseñador de mecánicas
+
+Contribuciones:
+  • Sistema de munición (líneas 86-89, 382-388)
+    - Límite: balas_maximas = 5
+    - Decremento: balas_actuales -= 1
+    - Recarga: tiempo_recarga = 1.5 segundos
+    - Timer: self.root.after() para recarga
+  
+  • Sistema de HP del player (línea 67, 229, 722)
+    - HP inicial: 3 (mayor que enemigos)
+    - Visualización en UI
+    - Incremento por derrotar boss
+    - Decremento por daño de balas
+  
+  • finalizar_recarga() - Recarga de munición (líneas 753-755)
+    - Callback de timer
+    - Reinicio de munición
+    - Cambio de estado
+
+Impacto: Equilibrio y tensión en el juego
+
+5.8 INTERFAZ VISUAL Y USUARIO
+───────────────────────────────
+
+Responsable: Implementador de UI
+
+Contribuciones:
+  • Panel lateral de información (líneas 47-58)
+    - label_score: Puntuación, HP, munición
+    - label_estado: Estado temporal (invulnerabilidad, etc)
+    - label_controles: Instrucciones
+  
+  • Actualización de UI dinámica (líneas 227-234)
+    - Puntuación actual
+    - HP actual del player
+    - Estado de munición (recargando vs disponible)
+  
+  • Sistema de input (líneas 186-214, manejar_input_gui)
+    - Mapeo de teclas a eventos
+    - Envío a ejecutar_evento
+    - Respuesta instantánea a input
+
+Impacto: Experiencia de usuario clara y responsiva
+
+=============================================================================
+6. CONCLUSIONES
+=============================================================================
+
+6.1 SÍNTESIS DEL DISEÑO
+────────────────────────
+
+El sistema de Tanks implementa un juego de estrategia y acción integrado
+en el marco BrickScript, con las siguientes características distinguidas:
+
+DIFERENCIACIÓN PLAYER vs ENEMIGOS:
+  ✓ Visual: Colores distintos (azul vs rojo)
+  ✓ Resistencia: 3 HP vs 1 HP
+  ✓ Control: Movimiento por input vs IA determinística
+  ✓ Munición: Limitada (5 balas, recarga) vs infinita
+  ✓ Restricción: No puede pasar a zona del boss
+  ✓ Recompensa: Gana HP al derrotar boss
+
+SISTEMA DEL BOSS:
+  ✓ Spawn: A partir de 300 puntos y cada 150 después
+  ✓ Estadísticas: 20 HP (20x más que enemigos)
+  ✓ Comportamiento: Patrulla horizontal predictiva
+  ✓ Combate: Dispara cada 16 ticks (2x más que enemigos)
+  ✓ Especial: Balas con explosiones espontáneas
+  ✓ Derrota: Otorga 100 puntos + 1 HP
+  ✓ Progresión: Cada boss más desafiante que el anterior
+
+INTEGRACIÓN:
+  • El sistema de Tanks es modular pero cohesivo
+  • Se integra con el ciclo de juego unificado
+  • Comparte el sistema de eventos y renderizado
+  • Escalable para futuras mejoras
+
+6.2 OPORTUNIDADES DE MEJORA
+─────────────────────────────
+
+Potenciales extensiones:
+  • Variaciones de tipos de boss (debilidades específicas)
+  • Sistema de power-ups (velocidad, blindaje, megabala)
+  • Niveles/mapas con layouts únicos
+  • Sonidos y efectos de partículas
+  • Puntuación de combos para disparos consecutivos
+  • Mecanicas de escudo o armas especiales
+  • Multijugador local
+
+6.3 BALANCE Y DIFICULTAD
+──────────────────────────
+
+Curva de dificultad:
+  0-300 pts:     Enemigos esparsos (20-60% spawn)
+  300+ pts:      Primer boss + oleadas densas
+  Progresión:    Lineal cada 150 pts de siguiente hito
+  
+Parámetros clave:
+  • boss.hp = 20:              Desafío significativo
+  • boss.fire_rate = 16 ticks: Presión ofensiva
+  • player.hp = 3:             Permite 3 impactos
+  • player.ammo = 5:           Requiere precisión
+  • player.reload = 1.5s:      Gestión de recursos
+
+6.4 CRÉDITOS TÉCNICOS
+──────────────────────
+
+Componentes identificados:
+  • Arquitectura base:         Equipo de diseño
+  • Motor y renderizado:       Implementador principal
+  • Física y colisiones:       Especialista en movimiento
+  • Combate y daño:            Especialista en mecánicas
+  • Sistema del boss:          Diseñador de jefe final
+  • Progresión y oleadas:      Diseñador de dificultad
+  • Recursos del jugador:      Diseñador de balance
+  • Interfaz visual:           Especialista en UI
+
+Todas las contribuciones se integran de manera cohesiva en los
+archivos tanks.py y runtime.py, demostrando un nivel de coordinación
+y planificación en el equipo de desarrollo.
+
+=============================================================================
+                              FIN DEL DOCUMENTO
+=============================================================================
+
+Versión: 1.0 - Análisis completo del módulo Tanks
+Fecha: 2026-07-24
+Repositorio: github.com/aarial12/TLP
+Rama: main
