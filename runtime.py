@@ -25,7 +25,10 @@ class Juego:
         self.grid = [[0 for _ in range(self.ancho)] for _ in range(self.alto)]
         self.puntuacion = 0
         self.juego_terminado = False
-        
+
+        # --- Carga de Configuración de Entidades desde datos_juego ---
+        self.config_entidades = self.datos_juego.get('entidades', self.datos_juego.get('entities', {}))
+
         # --- Configuración Base de la GUI ---
         self.root = tk.Tk()
         self.root.title("BrickScript - " + self.tipo_juego)
@@ -49,7 +52,6 @@ class Juego:
         self.label_score = tk.Label(self.marco_score, text="PUNTUACION\n0", bg='#222222', fg='white', font=('Consolas', 16, 'bold'))
         self.label_score.pack(pady=40, padx=10)
         
-        # Label de estado (Utilizado para efectos como la invulnerabilidad de Snake)
         self.label_estado = tk.Label(self.marco_score, text="", bg='#222222', fg='#ffd700', font=('Consolas', 11, 'bold'))
         self.label_estado.pack(pady=10, padx=10)
 
@@ -63,7 +65,14 @@ class Juego:
         # JUEGO: TANKS
         if self.tipo_juego == 'TANKS':
             self.entidades = []
-            self.player = tanks.Tank(self.ancho/2, self.alto/2, 0, hp=3, tipo='PLAYER')
+            
+            # Obtener datos de PLAYER desde datos_juego si existen
+            cfg_player = self.config_entidades.get('PLAYER', {})
+            hp_player = cfg_player.get('hp', 3)
+            
+            self.player = tanks.Tank(self.ancho/2, self.alto/2, 0, hp=hp_player, tipo='PLAYER')
+            self.player.velocidad = cfg_player.get('velocidad', 1)
+            self.player.color = cfg_player.get('color', "#05234B")
             self.entidades.append(self.player)
             
             self.tank_body = self.datos_juego['shapes']['TANK'][1]
@@ -71,7 +80,7 @@ class Juego:
             self.level = 1
             
             self.velocidad_gravedad = 0.01  
-            self.color_tank = "#05234B"
+            self.color_tank = self.player.color
             self.color_pieza = '#3B6294'
             self.color_enemigo = '#F77777'
             self.color_jefe = '#008800'
@@ -88,8 +97,9 @@ class Juego:
             self.tiempo_recarga = 1.5 
             self.boss_derrotado = False
             self.inicializar_grid_mapa()
+            self.hammer_pos = None  # Stores (x, y) coordinates of active hammer
 
-        # JUEGO: TETRIS / TETRIS REMAKE
+        # JUEGO: TETRIS
         if self.tipo_juego == 'TETRIS':
             self.pieza_actual = None
             self.pieza_x, self.pieza_y, self.pieza_rotacion = 0, 0, 0
@@ -98,7 +108,7 @@ class Juego:
             self.power_up_piece = None
             self.power_up_x, self.power_up_y = 0, 0
 
-        # JUEGO: SNAKE / SNAKE REMAKE
+        # JUEGO: SNAKE
         if self.tipo_juego == 'SNAKE':
             self.serpiente_cuerpo = []
             self.serpiente_direccion = (1, 0)
@@ -119,7 +129,6 @@ class Juego:
             self.img_nyancat_body = {}
             self.img_nyancat_trail = {}
             
-            # Soporte de Sprites (Intenta cargar .gif de la versión nueva, si no, busca .png)
             base_dir = os.path.dirname(os.path.abspath(__file__))
             for ext in ['.gif', '.png']:
                 food_path = os.path.join(base_dir, 'assets', 'snake', 'fruits', 'food' + ext)
@@ -222,7 +231,6 @@ class Juego:
     def dibujar(self):
         self.canvas.delete("all") 
         
-        # Actualización de UI lateral según el juego
         if self.tipo_juego == 'TANKS':
             hp_actual = self.player.hp if self.player in self.entidades else 0
             estado_municion = "RECARGANDO..." if self.recargando else str(self.balas_actuales) + " / " + str(self.balas_maximas)
@@ -232,21 +240,19 @@ class Juego:
             if self.tipo_juego == 'SNAKE':
                 self.label_estado.config(text=self.texto_estado_snake())
 
-        # 1. Cuadrícula estática base
         COLOR_GRID_FIJA = '#343434'
         for y in range(self.alto):
             for x in range(self.ancho):
                 if self.grid[y][x] == 1 and self.tipo_juego != 'TANKS':
                     self.dibujar_celda(x, y, COLOR_GRID_FIJA)
 
-        # 2. Renderizado específico de Tanks (¡Ahora incluye las balas al final!)
         if self.tipo_juego == 'TANKS':
             self.draw_tanks()
             self.draw_map()
             self.draw_bullets()
             self.draw_explosions()
+            self.draw_hammer()
 
-        # 3. Renderizado específico de Tetris
         if self.tipo_juego == 'TETRIS' and self.pieza_actual:
             if self.power_up_piece:
                 self.dibujar_celda(self.power_up_x, self.power_up_y, '#FFFF00')
@@ -256,7 +262,6 @@ class Juego:
                     if celda == 1:
                         self.dibujar_celda(self.pieza_x + x_offset, self.pieza_y + y_offset, self.color_pieza)
         
-        # 4. Renderizado específico de Snake
         if self.tipo_juego == 'SNAKE':
             snake_invulnerable = self.esta_invulnerable()
             parpadeo = int(time.time() * 10) % 2 == 0
@@ -386,6 +391,7 @@ class Juego:
                             self.recargando = True
                             self.root.after(int(self.tiempo_recarga * 1000), self.finalizar_recarga)
                     if verbo == 'UPDATE':
+                        self.verificar_colision_hammer()
                         self.update_bullets()
                         self.tick += 1
                         enemigos_vivos = [e for e in self.entidades if e.tipo in ['ENEMY', 'BOSS']]
@@ -393,11 +399,13 @@ class Juego:
                         
                         for enemy in enemigos_vivos:
                             if enemy in self.entidades:
+                                # Usar velocidad propia de cada entidad
+                                intervalo_mov = getattr(enemy, 'velocidad', 4)
                                 if enemy.tipo == 'BOSS':
-                                    if not (self.tick % 4): self.patrullar_boss(enemy)
+                                    if not (self.tick % intervalo_mov): self.patrullar_boss(enemy)
                                     if not (self.tick % 16): self.shoot(enemy)
                                 else:
-                                    if not (self.tick % 4):
+                                    if not (self.tick % intervalo_mov):
                                         if enemy.pasos_rafaga <= 0 or self.collition(traducir_dir[enemy.direc], enemy):
                                             enemy.rotate_tank(random.choice(['UP', 'LEFT', 'DOWN', 'RIGHT']), enemy) if hasattr(enemy, 'rotate_tank') else self.rotate_tank(random.choice(['UP', 'LEFT', 'DOWN', 'RIGHT']), enemy)
                                             enemy.pasos_rafaga = random.randint(8, 20)
@@ -630,15 +638,44 @@ class Juego:
 
         cantidad = max(1, int(len(self.puntos_spawn) * porcentaje))
         posiciones = random.sample(self.puntos_spawn, min(cantidad, len(self.puntos_spawn)))
+        
+        # Filtrar los tipos de enemigos configurados en el JSON (excluyendo a PLAYER y BOSS)
+        tipos_enemigos = [nombre for nombre, cfg in self.config_entidades.items() 
+        if cfg.get('tipo', 'ENEMY') == 'ENEMY' and nombre != 'PLAYER']
+        
         for (pos_x, pos_y) in posiciones:
             if abs(self.player.x - pos_x) < 7 and abs(self.player.y - pos_y) < 7: continue
-            self.entidades.append(tanks.Tank(pos_x, pos_y, 2, hp=1, tipo='ENEMY'))
+            
+            # Si hay tipos configurados, elegir uno al azar; de lo contrario usará valores por defecto
+            if tipos_enemigos:
+                nombre_tipo = random.choice(tipos_enemigos)
+                cfg = self.config_entidades[nombre_tipo]
+                hp_enemigo = cfg.get('hp', 1)
+                vel_enemigo = cfg.get('velocidad', 4)
+                color_enemigo = cfg.get('color', self.color_enemigo)
+            else:
+                hp_enemigo = 1
+                vel_enemigo = 4
+                color_enemigo = self.color_enemigo
+
+            nuevo_enemigo = tanks.Tank(pos_x, pos_y, 2, hp=hp_enemigo, tipo='ENEMY')
+            nuevo_enemigo.velocidad = vel_enemigo
+            nuevo_enemigo.color = color_enemigo
+            self.entidades.append(nuevo_enemigo)
+            self.spawn_hammer()
 
     def spawn_boss(self):
         self.boss_spawned = True
-        boss = tanks.Tank(self.ancho / 2 - 7, 2, 2, hp=20, tipo='BOSS')
-        boss.shape_name = 'BOSS'
+        cfg_boss = self.config_entidades.get('BOSS', {})
+        hp_boss = cfg_boss.get('hp', 20)
+        vel_boss = cfg_boss.get('velocidad', 4)
+        color_boss = cfg_boss.get('color', self.color_jefe)
+
+        boss = tanks.Tank(self.ancho / 2 - 7, 2, 2, hp=hp_boss, tipo='BOSS')
+        boss.shape_name = 'BOSS' 
         boss.direccion_patrulla = 1
+        boss.velocidad = vel_boss
+        boss.color = color_boss
         self.entidades.append(boss)
 
     def patrullar_boss(self, boss):
@@ -659,10 +696,11 @@ class Juego:
     def revisar_estado_oleada(self):
         if len([e for e in self.entidades if e.tipo in ['ENEMY', 'BOSS']]) == 0:
             if self.puntuacion >= self.siguiente_hito_boss and not self.boss_spawned: self.spawn_boss()
-            else: self.spawn()
+            else: 
+                self.spawn()
+                
 
     def ejecutar_explosion(self, centro_x, centro_y):
-        # 1. Aplicar la lógica de destrucción en el área (3x3 celdas a la redonda)
         for dy in range(-3, 4):
             for dx in range(-3, 4):
                 tx, ty = centro_x + dx, centro_y + dy
@@ -670,7 +708,6 @@ class Juego:
                     if self.grid[ty][tx] == 1: 
                         self.grid[ty][tx] = 0
                     
-                    # Dañar tanques en el radio de la explosión
                     for entidad in self.entidades[:]:
                         tam = 14 if entidad.tipo == 'BOSS' else 7
                         if entidad.x <= tx < (entidad.x + tam) and entidad.y <= ty < (entidad.y + tam):
@@ -696,10 +733,8 @@ class Juego:
             for by in range(ancho_bala):
                 tx, ty = x + bx, y + by
                 if not (0 <= tx < self.ancho and 0 <= ty < self.alto): return True
-                if self.grid[ty][tx] == 1:
-                    if tipo_bala == 'BOSS': self.ejecutar_explosion(x, y)
-                    else: self.grid[ty][tx] = 0
-                    return True
+                
+                # --- Check Entity Collisions FIRST ---
                 for entidad in self.entidades[:]:
                     if tipo_bala == 'ENEMY' and entidad.tipo in ['ENEMY', 'BOSS']: continue
                     if tipo_bala == 'PLAYER' and entidad.tipo == 'PLAYER': continue
@@ -720,10 +755,16 @@ class Juego:
                                     if self.boss_derrotado:
                                         self.player.hp += 1
                                         self.boss_derrotado = False
-                                        self.spawn()
+                                        self.mostrar_game_win()
                                     elif self.puntuacion >= self.siguiente_hito_boss and not self.boss_spawned: self.spawn_boss()
                                     else: self.spawn()
                         return True
+
+                # --- Check Wall Collisions SECOND ---
+                if self.grid[ty][tx] == 1:
+                    if tipo_bala == 'BOSS': self.ejecutar_explosion(x, y)
+                    else: self.grid[ty][tx] = 0
+                    return True
         return False
     
     def update_bullets(self):
@@ -755,7 +796,12 @@ class Juego:
 
     def draw_tanks(self):
         for entidad in self.entidades:
-            color = self.color_tank if entidad.tipo == 'PLAYER' else (self.color_enemigo if entidad.tipo == 'ENEMY' else self.color_jefe)
+            # Seleccionar color dinámico de la entidad
+            if hasattr(entidad, 'color') and entidad.color:
+                color = entidad.color
+            else:
+                color = self.color_tank if entidad.tipo == 'PLAYER' else (self.color_enemigo if entidad.tipo == 'ENEMY' else self.color_jefe)
+                
             matriz = self.tank_body[entidad.direc]
             factor = 2 if entidad.tipo == 'BOSS' else 1
             for y_offset, fila in enumerate(matriz):
@@ -796,7 +842,6 @@ class Juego:
                 self.dibujar_circulo(bullet[0], bullet[1], '#FF0000')
 
     def draw_explosions(self):
-        """ Dibuja las explosiones registradas y actualiza su ciclo de vida. """
         ts = self.taman_celda
         explosiones_vivas = []
 
@@ -809,16 +854,15 @@ class Juego:
                     tx, ty = cx + dx, cy + dy
                     if 0 <= tx < self.ancho and 0 <= ty < self.alto:
                         color = '#FF9900' if (dx + dy + exp['ticks']) % 2 == 0 else '#FF3300'
-                        self.canvas.create_rectangle(tx * ts, ty * ts, (tx + 1) * ts, (y + 1) * ts if False else (ty + 1) * ts, fill=color, outline="")
+                        self.canvas.create_rectangle(tx * ts, ty * ts, (tx + 1) * ts, (ty + 1) * ts, fill=color, outline="")
 
-            # Decrementar vida de la explosión
             exp['ticks'] -= 1
             if exp['ticks'] > 0:
                 explosiones_vivas.append(exp)
 
         self.explosiones_activas = explosiones_vivas
 
-    def move_tank(self, direction, tank):
+    def move_tank(self, direction, tank ):
         self.rotate_tank(direction, tank)
         if self.collition(direction, tank): return
         if direction == 'LEFT': tank.x -= 1
@@ -850,6 +894,56 @@ class Juego:
             if 0 <= ty < self.alto and 0 <= tx < self.ancho and self.grid[ty][tx] == 1: return 1
         return 0
 
+    def spawn_hammer(self):
+        max_intentos = 100
+        for _ in range(max_intentos):
+            # Pick random top-left corner for a 3x3 hammer box
+            x = random.randint(1, self.ancho - 4)
+            y = random.randint(1, self.alto - 4)
+            
+            # Check if the 3x3 area is completely clear of wall blocks (grid == 0)
+            area_libre = True
+            for dy in range(3):
+                for dx in range(3):
+                    if self.grid[y + dy][x + dx] != 0:
+                        area_libre = False
+                        break
+                if not area_libre:
+                    break
+            
+            if area_libre:
+                self.hammer_pos = (x, y)
+                break
+
+    def verificar_colision_hammer(self):
+        """Checks if player overlaps with the hammer to give +1 HP."""
+        if not self.hammer_pos or self.player not in self.entidades:
+            return
+
+        hx, hy = self.hammer_pos
+        tam_player = 7   # Tanks player bounding box is 7x7
+        tam_hammer = 3   # Hammer bounding box is 3x3
+        
+        # AABB Collision Check between Player (7x7) and Hammer (3x3)
+        if (self.player.x < hx + tam_hammer and self.player.x + tam_player > hx and
+            self.player.y < hy + tam_hammer and self.player.y + tam_player > hy):
+            
+            self.player.hp += 1       # Give 1 HP to player
+            self.hammer_pos = None    # Remove hammer from screen
+
+    def draw_hammer(self):
+        """Renders the hammer onto the Canvas."""
+        if not self.hammer_pos:
+            return
+
+        hx, hy = self.hammer_pos
+        ts = self.taman_celda
+
+        # Draw Metallic Head (3x1 rectangle on top)
+        self.canvas.create_rectangle(hx * ts, hy * ts, (hx + 3) * ts, (hy + 1) * ts, fill="#A9A9A9", outline="#000000")
+        # Draw Wooden Handle (1x2 rectangle centered underneath)
+        self.canvas.create_rectangle((hx + 1) * ts, (hy + 1) * ts, (hx + 2) * ts, (hy + 3) * ts, fill="#8B4513", outline="#000000")
+
     # =====================================================================
     # SISTEMA DE TERMINACIÓN
     # =====================================================================
@@ -858,7 +952,23 @@ class Juego:
         self.root.destroy()
         sys.exit(0)
 
+    def mostrar_game_win(self):
+        tkMessageBox.showinfo("VICTORIA!!!", "Puntuacion Final: " + str(self.puntuacion))
+        self.root.destroy()
+        sys.exit(0)
+
 if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print "Uso: python runtime.py <archivo_juego.json>"
+        sys.exit(1)
+    archivo_juego = sys.argv[1]
+    try:
+        with open(archivo_juego, 'r') as f: datos_juego = json.load(f)
+    except IOError:
+        print "Error: No se pudo encontrar el archivo " + archivo_juego
+        sys.exit(1)
+    juego = Juego(datos_juego)
+    juego.run()
     if len(sys.argv) != 2:
         print "Uso: python runtime.py <archivo_juego.json>"
         sys.exit(1)
