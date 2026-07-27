@@ -7,6 +7,7 @@ import time
 import random
 import bisect
 
+
 # Tkinter compatible con Python 2.7
 import Tkinter as tk
 from Tkinter import *

@@ -1,0 +1,187 @@
+=============================================================
+           MANUAL DE USUARIO TÉCNICO - BrickScript
+         Guía Práctica para Crear Nuevos Juegos
+=============================================================
+
+=============================================================
+FLUJO BÁSICO
+=============================================================
+
+1. Crear archivo .brick con estructura de juego
+2. Compilar: python compiler.py archivo.brick
+3. Ejecutar: python runtime.py archivo.json
+
+=============================================================
+ESTRUCTURA MÍNIMA DE UN ARCHIVO .brick
+=============================================================
+
+Todo juego .brick tiene esta estructura:
+
+┌────────────────────────────────────────────┐
+│ 1. CONFIGURACIÓN (GAME_TYPE, GAME_GRID)    │
+│ 2. DEFINICIONES DE FORMAS (DEFINE SHAPE)   │
+│ 3. COLORES (opcional, pero recomendado)    │
+│ 4. EVENTOS (ON START, ON TICK, etc.)       │
+└────────────────────────────────────────────┘
+
+=============================================================
+CONFIGURACIÓN BÁSICA
+=============================================================
+
+GAME_TYPE [TIPO]
+  Tipos: TETRIS, SNAKE, TANKS
+  Ejemplo: GAME_TYPE TETRIS
+
+GAME_GRID (ANCHO, ALTO)
+  Define tamaño del área de juego en celdas
+  Ejemplo: GAME_GRID (10, 20)
+
+DIFICULTY [NIVEL] 
+  Niveles: BABY, CLASSIC, ENTUSIASTA, CAT
+  Ejemplo: DIFICULTY CLASSIC
+
+POWERUP_INVULNERABILITY [SEGUNDOS]  
+  Ejemplo: POWERUP_INVULNERABILITY 5
+
+=============================================================
+DEFINICIÓN DE FORMAS (DEFINE SHAPE)
+=============================================================
+
+Las formas son los elementos gráficos del juego (piezas, comida, tanques, etc.)
+
+SINTAXIS GENERAL:
+
+DEFINE SHAPE [NOMBRE]:
+  [CHANCE [VALOR]]          # Opcional: probabilidad (1-10)
+  STATE [N]:                # Rotaciones/estados
+    [fila_matriz]
+    [fila_matriz]
+  END
+  STATE [N]:                # Siguiente estado (opcional)
+    [fila_matriz]
+  END
+END
+
+MATRIZ: Array de 0s y 1s, donde 1 = celda ocupada, 0 = vacía
+  Ejemplos:
+    [1,1,1,1]        → Línea horizontal
+    [1][1][1][1]     → Línea vertical
+    [1,1]            → Cuadrado 2x2
+    [1][1][1][1]
+
+CHANCE: Peso de probabilidad (por defecto 1)
+  CHANCE 2: Aparece 2x más frecuente
+  CHANCE 0: Nunca aparece
+
+=============================================================
+ESTRUCTURAS .brick EXPLICADAS
+=============================================================
+
+DEFINE SHAPE: Crea elementos gráficos del juego
+
+  1. Piezas de Tetris:
+     - Necesitas 7 formas (I, O, T, S, Z, J, L)
+     - Cada forma puede tener 1-4 rotaciones (STATE)
+     - CHANCE determina frecuencia de aparición
+
+  2. Elementos de Snake:
+     - FOOD: Una celda [1]
+     - POISON (opcional): [1]
+     - CLOUD (opcional): [1,1,1] o forma custom
+     - POWERUP (opcional): [1] o forma custom
+
+  3. Mapa de Tanks:
+     - Una matriz 10x10 (se escala automáticamente)
+     - 0 = vacío, 1 = pared, 2 = punto de spawn
+
+COLORS: Define paleta de colores
+
+  Formato: COLOR [NOMBRE]: [CODHEX]
+  Se elige aleatoriamente al spawnear formas
+  Si no definas COLORS, el motor usa colores por defecto
+
+EVENTOS (ON_*): Triggers que ejecutan acciones
+
+  Generales:
+    ON START:              Una vez al iniciar
+    ON TICK:               Cada frame
+    ON KEY_UP/DOWN/LEFT/RIGHT: Teclado
+
+  Tetris:
+    ON LINE_CLEAR:         Línea completada
+    ON SECRET:             4 líneas simultáneas
+
+  Snake:
+    ON EAT_FOOD:           Comió comida
+    ON COLLISION_WALL:     Chocó con pared
+    ON COLLISION_SELF:     Chocó consigo mismo
+
+  Tanks:
+    ON KEY_SPACE:          Barra espaciadora
+
+ACCIONES: Comandos ejecutados en eventos
+
+    - SPAWN RANDOM_SHAPE           
+    - MOVE CURRENT_PIEZA [LEFT|RIGHT|DOWN]
+    - ROTATE CURRENT_PIEZA
+    - INCREASE_SCORE [N]
+    - GAME_OVER
+    - SPAWN PLAYER AT (X, Y) / RANDOM
+    - SPAWN FOOD AT RANDOM
+    - SET_DIRECTION [UP|DOWN|LEFT|RIGHT]
+    - MOVE PLAYER FORWARD
+    - GROW PLAYER [N]
+    - INCREASE_SCORE [N]
+    - MOVE [UP|DOWN|LEFT|RIGHT]
+    - SHOT / SHOOT
+    - UPDATE
+    - SPAWN
+    - INCREASE_SCORE [N]
+
+=============================================================
+PASO A PASO: CREAR TU PROPIO JUEGO
+=============================================================
+
+PASO 1: Elige tipo de juego
+  → TETRIS, SNAKE, o TANKS
+
+PASO 2: Define configuración
+  → GAME_TYPE, GAME_GRID, DIFICULTY (si es SNAKE)
+
+PASO 3: Crea formas (DEFINE SHAPE)
+  → Al menos 1 forma obligatoria
+  → Usa matrices de 0s y 1s
+  → Agrega CHANCE si quieres probabilidades distintas
+
+PASO 4: Define colores (COLORS)
+  → Usa códigos HEX sin #
+  → Ejemplo: FF0000 (rojo), 0000FF (azul)
+
+PASO 5: Escribe eventos (ON_*)
+  → Siempre necesitas ON START
+  → Normalmente ON TICK para lógica principal
+  → ON KEY_* para controles
+
+PASO 6: Agrega acciones a eventos
+  → Usa acciones válidas para tu tipo de juego
+  → Pueden ir múltiples acciones en un evento
+
+PASO 7: Compila y prueba
+  → python compiler.py archivo.brick
+  → python runtime.py archivo.json
+
+=============================================================
+REGLAS IMPORTANTES
+=============================================================
+
+✓ Palabras clave EN MAYÚSCULAS (GAME_TYPE, DEFINE, etc.)
+✓ Matrices entre corchetes: [1,0,1] o [1][0][1]
+✓ Coordenadas como tuplas: (X, Y)
+✓ Cada bloque termina con END
+✓ Los comentarios comienzan con #
+✓ El parser es flexible con espacios y saltos de línea
+
+✗ No espacios en nombres (usa_ guion bajo en lugar de espacio)
+✗ No caracteres especiales en nombres de formas
+
+=============================================================

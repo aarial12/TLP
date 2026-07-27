@@ -18,7 +18,8 @@
       20, 
       20
     ], 
-    "dificulty": "CAT"
+    "dificulty": "CAT", 
+    "powerup_invulnerability": 4
   }, 
   "events": {
     "ON_KEY_DOWN": [
@@ -91,6 +92,25 @@
         ], 
         "accion": "SPAWN", 
         "objeto": "FOOD"
+      }
+    ], 
+    "ON_EAT_POWERUP": [
+      {
+        "params": [], 
+        "accion": "DURATION", 
+        "objeto": 30
+      }, 
+      {
+        "params": [], 
+        "accion": "INCREASE_SCORE", 
+        "objeto": "50"
+      }, 
+      {
+        "params": [
+          "1"
+        ], 
+        "accion": "GROW", 
+        "objeto": "PLAYER"
       }
     ], 
     "ON_KEY_UP": [
